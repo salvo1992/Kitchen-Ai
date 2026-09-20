@@ -1,0 +1,204 @@
+{
+  "app_name": "CucinaSmart AI",
+  "personality": "4 Tactile structure with 8 Hand-Drawn / Journal color and typography",
+  "personality_one_liner": "A warm, accessible, and highly visual kitchen companion that turns daily cooking and pantry management into a stress-free, welcoming ritual.",
+  "color": {
+    "surface": "#FDFBF7",
+    "onSurface": "#2C302E",
+    "surfaceSecondary": "#F5F2EA",
+    "onSurfaceSecondary": "#2C302E",
+    "surfaceTertiary": "#EAE5D9",
+    "onSurfaceTertiary": "#4A4D4A",
+    "surfaceInverse": "#2C302E",
+    "onSurfaceInverse": "#FDFBF7",
+    "brand": "#8DA399",
+    "brandPrimary": "#799488",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#D98364",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#E6EDE9",
+    "onBrandTertiary": "#2C302E",
+    "success": "#799488",
+    "onSuccess": "#FFFFFF",
+    "warning": "#E07A5F",
+    "onWarning": "#FFFFFF",
+    "error": "#C25450",
+    "onError": "#FFFFFF",
+    "info": "#EAE5D9",
+    "onInfo": "#2C302E",
+    "border": "#EAE5D9",
+    "borderStrong": "#D1CCC0",
+    "divider": "#EAE5D9",
+    "muted": "#7E8480",
+    "onBrand": "#FFFFFF"
+  },
+  "dark_mode_color": {
+    "surface": "#232524",
+    "onSurface": "#FDFBF7",
+    "surfaceSecondary": "#2C302E",
+    "onSurfaceSecondary": "#FDFBF7",
+    "surfaceTertiary": "#383C3A",
+    "onSurfaceTertiary": "#EAE5D9",
+    "surfaceInverse": "#FDFBF7",
+    "onSurfaceInverse": "#232524",
+    "brand": "#8DA399",
+    "brandPrimary": "#A3BDB1",
+    "onBrandPrimary": "#1A211E",
+    "brandSecondary": "#E09C82",
+    "onBrandSecondary": "#2C140C",
+    "brandTertiary": "#2C3833",
+    "onBrandTertiary": "#E6EDE9",
+    "success": "#A3BDB1",
+    "onSuccess": "#1A211E",
+    "warning": "#E69C85",
+    "onWarning": "#2C140C",
+    "error": "#D97773",
+    "onError": "#FFFFFF",
+    "info": "#383C3A",
+    "onInfo": "#FDFBF7",
+    "border": "#383C3A",
+    "borderStrong": "#4A4D4A",
+    "divider": "#383C3A",
+    "muted": "#9BA19D",
+    "onBrand": "#1A211E"
+  },
+  "typography": {
+    "displayFontFamily": "Fraunces",
+    "textFontFamily": "Nunito",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Generous tactile spacing following an 8pt rhythm. Avoid cramped dashboard grids. Use generous whitespace to create a calm, organized kitchen environment.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 8,
+    "md": 16,
+    "lg": 24,
+    "pill": 999
+  },
+  "shadow_tier": "2",
+  "navigation": "bottom_tabs_with_floating_center_button",
+  "icon_set": "Phosphor",
+  "glassmorphism": {
+    "enabled": "true",
+    "do's": [
+      "Use glassmorphism on the bottom tab bar to let recipe and pantry content scroll beautifully behind it.",
+      "Apply glass effects on the floating Chef AI central button container for an elevated, magical feel.",
+      "Use frosted glass on sticky recipe headers and bottom-sheet handles."
+    ],
+    "dont's": [
+      "Avoid applying glassmorphism to standard pantry inventory cards or lists—keep those tactile and solid.",
+      "Never blur body text regions or dense forms."
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Oggi Dashboard",
+      "purpose": "A daily command center that highlights what to eat today, upcoming expirations, and a direct line to Chef AI.",
+      "states": {
+        "loading": "Soft pulsating skeleton cards with rounded corners.",
+        "empty": "Warm illustration of an empty counter. CTA: 'Plan today's meals'.",
+        "error": "Friendly error message 'Oops, couldn't load today's plan' with a terracotta retry button."
+      },
+      "layout": "Top section: Personalized greeting + simple KPI (e.g., '2 items expiring soon'). Middle: Horizontal scroll of 'Today's Menu' (Breakfast, Lunch, Dinner) featuring large image cards with gradient-to-dark scrims. Bottom Tab Bar has 4 tabs (Oggi, Ricette, Dispensa, Spesa). Above the tab bar sits a prominent, glass-elevated circular FAB for the Chef AI."
+    },
+    {
+      "name": "Pantry (Dispensa)",
+      "purpose": "A triage-based inventory system that helps users reduce food waste by highlighting urgent expirations.",
+      "states": {
+        "loading": "Skeleton list rows with circular thumbnail placeholders.",
+        "empty": "Illustration of an open, empty fridge. CTA: 'Scan barcode' or 'Add manually'.",
+        "error": "Message 'Unable to fetch pantry' with a retry CTA."
+      },
+      "layout": "Top sticky segmented control (Tabs: Fridge, Freezer, Pantry). Content is a triage system, not a flat list. Section 1: 'Use First' (items expiring <3 days, highlighted with terracotta/amber badges). Section 2: 'All Good'. Add items via a floating secondary FAB or top-right action that triggers a slide-up bottom sheet for seamless entry (Barcode scan or manual)."
+    },
+    {
+      "name": "Recipe Library (Ricette)",
+      "purpose": "A visually rich cookbook combining saved recipes and pantry-based suggestions ('What can I cook?').",
+      "states": {
+        "loading": "Grid of staggered skeleton recipe cards.",
+        "empty": "Illustration of a blank recipe book. CTA: 'Discover recipes'.",
+        "error": "Message 'Cookbook unavailable' with a retry CTA."
+      },
+      "layout": "Search bar at top. Horizontal scrolling chips for categories (e.g., 'What can I cook?', 'Quick Dinners', 'Pasta'). Below, a 2-column masonry or balanced grid of recipe cards. Each card must have a high-quality image, a gradient scrim, and bold Fraunces typography for the title."
+    },
+    {
+      "name": "Guided Cooking Mode",
+      "purpose": "An immersive, hands-free cooking experience with large text and timers.",
+      "states": {
+        "loading": "Spinner centered on screen.",
+        "empty": "N/A - Must be triggered from a recipe.",
+        "error": "Message 'Couldn't load steps' with retry CTA."
+      },
+      "layout": "Fullscreen view, safe area respected. Massive, highly readable Nunito text for current step. Large interactive timer widget if step requires it. Bottom pinned control bar with 'Next Step' (sticky CTA) and a microphone icon for voice control. Dark mode is highly recommended here to save battery and reduce glare."
+    },
+    {
+      "name": "Chef AI Chat",
+      "purpose": "A conversational assistant to help with recipe generation, meal planning from photos, and cooking tips.",
+      "states": {
+        "loading": "Typing indicator (bouncing dots in a sage green bubble).",
+        "empty": "Chef AI greeting with suggested prompt chips (e.g., 'What can I make with tomatoes?').",
+        "error": "Error bubble 'I lost my train of thought. Try again?'"
+      },
+      "layout": "Triggered from the central FAB. Can be a full-screen modal or large bottom sheet. Standard chat UI. User messages on right (surfaceSecondary), AI messages on left (brandTertiary). Input bar at bottom includes camera/vision attachment (for OCR meal plans/ingredients) and voice input."
+    }
+  ],
+  "images": {
+    "hero_pantry_empty": {
+      "url": "https://images.unsplash.com/photo-1782085168764-a78958bfc794?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1ODh8MHwxfHNlYXJjaHwyfHxoZWFsdGh5JTIwZnJlc2glMjBpbmdyZWRpZW50cyUyMGZsYXRsYXl8ZW58MHx8fHwxNzg5OTExNjAyfDA&ixlib=rb-4.1.0&q=85",
+      "dark": "https://images.unsplash.com/photo-1782085168764-a78958bfc794?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1ODh8MHwxfHNlYXJjaHwyfHxoZWFsdGh5JTIwZnJlc2glMjBpbmdyZWRpZW50cyUyMGZsYXRsYXl8ZW58MHx8fHwxNzg5OTExNjAyfDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Fresh green peas flatlay representing healthy ingredients"
+    },
+    "recipe_card_sample": {
+      "url": "https://images.pexels.com/photos/546945/pexels-photo-546945.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "dark": "https://images.pexels.com/photos/546945/pexels-photo-546945.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "alt": "Delicious spaghetti carbonara dish"
+    },
+    "chef_ai_background": {
+      "url": "https://images.unsplash.com/photo-1556911220-bff31c812dba?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2OTV8MHwxfHNlYXJjaHwxfHxlbXB0eSUyMG1vZGVybiUyMGtpdGNoZW4lMjBjb3VudGVyfGVufDB8fHx8MTc4OTkxMTYwMnww&ixlib=rb-4.1.0&q=85",
+      "dark": "https://images.unsplash.com/photo-1556911220-bff31c812dba?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2OTV8MHwxfHNlYXJjaHwxfHxlbXB0eSUyMG1vZGVybiUyMGtpdGNoZW4lMjBjb3VudGVyfGVufDB8fHx8MTc4OTkxMTYwMnww&ixlib=rb-4.1.0&q=85",
+      "alt": "Modern white kitchen with marble island"
+    }
+  },
+  "haptics": {
+    "primary_button_press": "impactLight",
+    "tab_change": "selection",
+    "add_to_shopping_list": "impactMedium",
+    "timer_complete": "notificationSuccess",
+    "chef_ai_invoke": "impactHeavy"
+  },
+  "instructions_to_main_agent": [
+    "Strictly follow the color palette containing Sage Green, Cream, Beige, and Terracotta accents. Map these accurately to theme.ts.",
+    "Implement a generous 8pt spacing scale with rounded, tactile cards (radius 'lg': 24). Avoid sharp, cramped, or brutalist edges.",
+    "Navigation: Build a custom bottom tab bar. It MUST feature a central, floating, oversized circular FAB for the Chef AI that sits above the tab bar. Use `expo-blur` behind the tab bar for a glassmorphism effect.",
+    "Pantry Screen: Based on research, do NOT build a simple flat list. Group items into 'Use First' (urgent expirations) and 'All Good' to triage food waste. Use visual status badges (green, amber, terracotta) for expirations.",
+    "Recipe Images: ALWAYS apply a gradient scrim (transparent to dark) on top of recipe images before overlaying text to ensure WCAG AA contrast, as requested in the <Imagery_and_Texture> rules.",
+    "Typography: Apply Fraunces (or a fallback editorial serif) for bold, warm headings, and Nunito for friendly, highly legible body copy. Keep max font weight to 500.",
+    "Ensure 'Guided Cooking Mode' uses massive typography for legibility at a distance, and integrates a sticky next-step CTA."
+  ]
+}
