@@ -3,7 +3,7 @@ import { View, Pressable, Text, Platform } from "react-native";
 import Ionicons from "@react-native-vector-icons/ionicons";
 import { BlurView } from "expo-blur";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { makeStyles, useTheme, radius, spacing } from "@/src/theme";
+import { makeStyles, useTheme } from "@/src/theme";
 
 const useStyles = makeStyles((c) => ({
   bar: {

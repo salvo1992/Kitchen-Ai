@@ -1,4 +1,4 @@
-import { View, Text, FlatList, Pressable, ScrollView, RefreshControl, TextInput, Modal, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, Pressable, ScrollView, RefreshControl, TextInput, Modal, KeyboardAvoidingView, Platform } from "react-native";
 import Ionicons from "@react-native-vector-icons/ionicons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -77,7 +77,7 @@ export default function Dispensa() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["pantry"] }); qc.invalidateQueries({ queryKey: ["pantry-all"] }); },
   });
 
-  const items = listQ.data || [];
+  const items = useMemo(() => listQ.data || [], [listQ.data]);
   const { useFirst, allGood } = useMemo(() => {
     const uf: any[] = []; const ag: any[] = [];
     for (const i of items) {

@@ -33,7 +33,7 @@ function Gate() {
     const inAuth = segments[0] === "(auth)";
     if (!user && !inAuth) router.replace("/(auth)/login");
     else if (user && inAuth) router.replace("/(tabs)/oggi");
-  }, [user, loading, segments]);
+  }, [user, loading, segments, router]);
 
   if (loading) {
     return (

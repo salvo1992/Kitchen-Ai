@@ -34,6 +34,12 @@ Full kitchen command center: plan meals, cook with AI, run pantry/fridge/freezer
 - uploads {path, user_id, content_type, created_at}
 - file_tokens {token, path, user_id, expires_at} (TTL)
 
+## Status (Giugno 2026)
+- Backend: 32/32 test OK (iteration_1)
+- Frontend E2E: 11/11 flussi OK (iteration_2) — login, Oggi, Ricette (+dettaglio, cook passo-passo), Dispensa, Spesa, Calendario/add-meal, Chef AI (Gemini), Cosa cucino, Import foto (render), Settings/logout
+- Lint frontend: 0 warning
+- Backlog: notifiche push per scadenze (richiede build nativa)
+
 ## Env
 Backend: MONGO_URL, DB_NAME, EMERGENT_LLM_KEY, JWT_SECRET, APP_NAME=cucinasmart-ai
 Frontend: EXPO_PUBLIC_BACKEND_URL
