@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import { api } from "@/src/api";
+import { StepTimer } from "@/src/components/StepTimer";
 import { makeStyles, useTheme, spacing, radius } from "@/src/theme";
 
 const useStyles = makeStyles((c) => ({
@@ -41,6 +42,7 @@ export default function CookMode() {
       <View style={styles.content}>
         <Text style={styles.progress}>Passo {idx + 1} di {steps.length}</Text>
         <Text style={styles.step}>{cur}</Text>
+        <StepTimer key={idx} stepText={cur} />
       </View>
       <View style={[styles.bar, { paddingBottom: insets.bottom + spacing.md }]}>
         <Pressable testID="prev-step" style={styles.btnSec} onPress={() => setIdx(Math.max(0, idx - 1))} disabled={idx === 0}>

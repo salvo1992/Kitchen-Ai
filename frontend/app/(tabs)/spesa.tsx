@@ -1,5 +1,6 @@
-import { View, Text, FlatList, Pressable, TextInput, Modal, KeyboardAvoidingView, Platform, RefreshControl } from "react-native";
+import { View, Text, FlatList, Pressable, TextInput, Modal, KeyboardAvoidingView, Platform, RefreshControl, Share, Linking } from "react-native";
 import Ionicons from "@react-native-vector-icons/ionicons";
+import * as Clipboard from "expo-clipboard";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -14,7 +15,7 @@ const useStyles = makeStyles((c) => ({
   header: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md },
   title: { fontSize: 26, fontWeight: "700", color: c.onSurface, letterSpacing: -0.5 },
   sub: { color: c.muted, marginTop: 2 },
-  actions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md },
+  actions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md, flexWrap: "wrap" },
   actionBtn: { flexDirection: "row", gap: 6, alignItems: "center", backgroundColor: c.surfaceSecondary, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 8 },
   actionTxt: { color: c.onSurface, fontSize: 13, fontWeight: "600" },
   aisleHead: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: 4 },
@@ -92,6 +93,33 @@ export default function Spesa() {
   }, [grouped]);
 
   const totalChecked = (listQ.data || []).filter((x: any) => x.checked).length;
+  const [copied, setCopied] = useState(false);
+
+  const buildText = () => {
+    const lines: string[] = ["🛒 Lista della spesa – CucinaSmart AI", ""];
+    for (const key of Object.keys(grouped)) {
+      const open = grouped[key].filter((i: any) => !i.checked);
+      if (open.length === 0) continue;
+      lines.push(`📍 ${key}`);
+      for (const i of open) lines.push(`☐ ${i.name} — ${i.unit === "q.b." ? "q.b." : `${i.qty} ${i.unit}`}`);
+      lines.push("");
+    }
+    return lines.join("\n").trim();
+  };
+  const copyList = async () => {
+    await Clipboard.setStringAsync(buildText());
+    setCopied(true); setTimeout(() => setCopied(false), 2000);
+  };
+  const shareList = async () => {
+    const text = buildText();
+    if (Platform.OS === "web") { await copyList(); return; }
+    try { await Share.share({ message: text }); } catch {}
+  };
+  const shareWhatsApp = async () => {
+    const url = `whatsapp://send?text=${encodeURIComponent(buildText())}`;
+    if (await Linking.canOpenURL(url)) Linking.openURL(url); else shareList();
+  };
+  const openCount = (listQ.data || []).length - totalChecked;
 
   return (
     <View style={styles.root}>
@@ -100,6 +128,24 @@ export default function Spesa() {
           <Text style={styles.title}>Lista spesa</Text>
           <Text style={styles.sub}>{(listQ.data || []).length} articoli · {totalChecked} presi</Text>
           <View style={styles.actions}>
+            {openCount > 0 && (
+              <>
+                <Pressable testID="share-list" style={styles.actionBtn} onPress={shareList}>
+                  <Ionicons name="share-social-outline" size={16} color={colors.brandPrimary} />
+                  <Text style={styles.actionTxt}>Condividi</Text>
+                </Pressable>
+                {Platform.OS !== "web" && (
+                  <Pressable testID="share-whatsapp" style={styles.actionBtn} onPress={shareWhatsApp}>
+                    <Ionicons name="logo-whatsapp" size={16} color={colors.brandPrimary} />
+                    <Text style={styles.actionTxt}>WhatsApp</Text>
+                  </Pressable>
+                )}
+                <Pressable testID="copy-list" style={styles.actionBtn} onPress={copyList}>
+                  <Ionicons name={copied ? "checkmark" : "copy-outline"} size={16} color={colors.brandPrimary} />
+                  <Text style={styles.actionTxt}>{copied ? "Copiata!" : "Copia"}</Text>
+                </Pressable>
+              </>
+            )}
             {totalChecked > 0 && (
               <Pressable testID="clear-checked" style={styles.actionBtn} onPress={() => clearChecked.mutate()}>
                 <Ionicons name="checkmark-done" size={16} color={colors.brandPrimary} />

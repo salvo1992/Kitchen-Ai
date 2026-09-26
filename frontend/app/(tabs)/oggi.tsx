@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { View, Text, ScrollView, Pressable, RefreshControl } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -52,6 +52,12 @@ const useStyles = makeStyles((c) => ({
   statVal: { color: c.onSurfaceInverse, fontWeight: "800", fontSize: 22 },
   statLbl: { color: c.onSurfaceInverse, opacity: 0.75, fontSize: 11, marginTop: 2 },
   statsFoot: { color: c.onSurfaceInverse, opacity: 0.8, fontSize: 12, marginTop: spacing.md, lineHeight: 17 },
+  dayChip: { width: 56, paddingVertical: 8, borderRadius: radius.md, backgroundColor: c.surfaceSecondary, alignItems: "center", gap: 2 },
+  dayChipActive: { backgroundColor: c.brandPrimary },
+  dayName: { color: c.muted, fontSize: 11, fontWeight: "600" },
+  dayNum: { color: c.onSurface, fontSize: 18, fontWeight: "800" },
+  dots: { flexDirection: "row", gap: 3, marginTop: 2 },
+  dot: { width: 5, height: 5, borderRadius: 2.5 },
 }));
 
 function greetingText() {
@@ -64,6 +70,11 @@ function greetingText() {
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
+function addDays(iso: string, n: number) {
+  const d = new Date(iso + "T12:00:00"); d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+const DAY_SHORT = ["Dom", "Lun", "Mar", "Mer", "Gio", "Ven", "Sab"];
 
 export default function Oggi() {
   const styles = useStyles();
@@ -72,12 +83,14 @@ export default function Oggi() {
   const router = useRouter();
   const { user } = useAuth();
   const bottomChrome = insets.bottom;
+  const today = todayStr();
+  const [selDay, setSelDay] = useState(today);
+  const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(today, i)), [today]);
 
   const mealsQ = useQuery({
-    queryKey: ["meals", "today"],
+    queryKey: ["meals", "week", today],
     queryFn: async () => {
-      const d = todayStr();
-      const res = await api<{ items: any[] }>(`/api/meals?start=${d}&end=${d}`);
+      const res = await api<{ items: any[] }>(`/api/meals?start=${today}&end=${addDays(today, 6)}`);
       return res.items;
     },
   });
@@ -102,9 +115,15 @@ export default function Oggi() {
   }, [expiringQ.data]);
 
   const slotsData = ["colazione", "pranzo", "cena"].map((slot) => {
-    const m = (mealsQ.data || []).find((x: any) => x.slot === slot);
+    const m = (mealsQ.data || []).find((x: any) => x.slot === slot && x.date === selDay);
     return { slot, meal: m };
   });
+  const mealCountByDay = useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const m of mealsQ.data || []) c[m.date] = (c[m.date] || 0) + 1;
+    return c;
+  }, [mealsQ.data]);
+  const selLabel = selDay === today ? "Il menu di oggi" : selDay === addDays(today, 1) ? "Il menu di domani" : `Menu di ${DAY_SHORT[new Date(selDay + "T12:00:00").getDay()]} ${new Date(selDay + "T12:00:00").getDate()}`;
 
   return (
     <View style={styles.root}>
@@ -141,16 +160,32 @@ export default function Oggi() {
 
         <View style={styles.section}>
           <View style={styles.sectionHead}>
-            <Text style={styles.sectionTitle}>Il menu di oggi</Text>
+            <Text style={styles.sectionTitle}>{selLabel}</Text>
             <Pressable onPress={() => router.push("/calendar")}><Text style={styles.sectionLink}>Calendario →</Text></Pressable>
           </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm, paddingRight: spacing.md, marginBottom: spacing.md }} testID="week-strip">
+            {weekDays.map((d) => {
+              const dt = new Date(d + "T12:00:00");
+              const active = d === selDay;
+              const n = mealCountByDay[d] || 0;
+              return (
+                <Pressable key={d} testID={`day-${d}`} onPress={() => setSelDay(d)} style={[styles.dayChip, active && styles.dayChipActive]}>
+                  <Text style={[styles.dayName, active && { color: colors.onBrandPrimary }]}>{d === today ? "Oggi" : DAY_SHORT[dt.getDay()]}</Text>
+                  <Text style={[styles.dayNum, active && { color: colors.onBrandPrimary }]}>{dt.getDate()}</Text>
+                  <View style={styles.dots}>
+                    {[0, 1, 2].map((k) => <View key={k} style={[styles.dot, k < n ? { backgroundColor: active ? colors.onBrandPrimary : colors.brandSecondary } : { backgroundColor: active ? "rgba(255,255,255,0.3)" : colors.borderStrong }]} />)}
+                  </View>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: spacing.md }}>
             {slotsData.map(({ slot, meal }) => (
               <Pressable
                 key={slot}
                 testID={`slot-${slot}`}
                 style={[styles.slot, !meal && styles.emptySlot]}
-                onPress={() => meal?.recipe_id ? router.push({ pathname: "/recipe/[id]", params: { id: meal.recipe_id } }) : router.push({ pathname: "/add-meal", params: { date: todayStr(), slot } as any })}
+                onPress={() => meal?.recipe_id ? router.push({ pathname: "/recipe/[id]", params: { id: meal.recipe_id } }) : router.push({ pathname: "/add-meal", params: { date: selDay, slot } as any })}
               >
                 {meal ? (
                   <>
@@ -174,11 +209,12 @@ export default function Oggi() {
         </View>
 
         {statsQ.data && (
-          <View style={styles.stats} testID="waste-stats">
+          <Pressable style={styles.stats} testID="waste-stats" onPress={() => router.push("/history")}>
             <View style={styles.statsHead}>
               <Ionicons name="leaf" size={18} color={colors.brandPrimary} />
               <Text style={styles.statsTitle}>Anti-spreco</Text>
               <Text style={styles.statsMonth}>{new Date(statsQ.data.month + "-01T12:00:00").toLocaleDateString("it-IT", { month: "long", year: "numeric" })}</Text>
+              <Ionicons name="chevron-forward" size={16} color={colors.onSurfaceInverse} style={{ opacity: 0.6 }} />
             </View>
             <View style={styles.statsRow}>
               <View style={styles.stat}><Text style={styles.statVal} testID="stat-cooked">{statsQ.data.recipes_cooked}</Text><Text style={styles.statLbl}>ricette cucinate</Text></View>
@@ -192,7 +228,7 @@ export default function Oggi() {
                   ? `Ottimo lavoro! Occhio però: ${statsQ.data.expired_now} ${statsQ.data.expired_now === 1 ? "prodotto è già scaduto" : "prodotti sono già scaduti"} in dispensa.`
                   : "Ottimo lavoro: nessun prodotto scaduto in dispensa!"}
             </Text>
-          </View>
+          </Pressable>
         )}
 
         <View style={styles.section}>

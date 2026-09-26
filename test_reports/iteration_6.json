@@ -1,0 +1,40 @@
+{
+  "summary": "CucinaSmart AI iteration 6: all 4 NEW features (Widget Settimana, Timer Cucina, Storico Cucinato, Export Spesa) validated end-to-end. Backend 6/6 pytest cases pass in /app/backend/tests/test_iter6_features.py (~2s). Frontend flows verified on mobile viewport (390x844) with chef@cucina.ai. No blocking bugs. Only known non-blocking web deprecation warnings (shadow*, pointerEvents, expo-notifications web).\n\nBackend (6/6 PASS):\n- GET /api/stats/history?month=bad → 400.\n- GET /api/stats/history?month=2020-01 → {month:'2020-01', items:[]}.\n- GET /api/stats/history (default) → current month + items list with correct shape.\n- After POST /api/recipes/{id}/cooked, new entry appears at top of history with all required fields (id, recipe_id, title, servings, cooked_at, items_used, items_saved). items_used>=1 and items_saved>=1 when pantry item expires within 3 days.\n- POST /api/meals across 3 different dates (today, +3, +6) → GET /api/meals?start=today&end=today+6 returns all 3.\n- Meals outside the 7-day window are correctly excluded.\n\nFrontend (all flows PASS on mobile 390x844, chef@cucina.ai, server date 2026-09-26):\n- Oggi week-strip: [data-testid=week-strip] visible, 7 chips, first labelled 'Oggi 26'. Tomorrow chip [data-testid=day-2026-09-27] present. Tap → header switches to 'Il menu di domani' and slot-pranzo shows a meal. Tapping an empty slot on day+3 (2026-09-29) navigates to /add-meal?date=2026-09-29&slot=colazione ✔.\n- Timer Cucina in /cook/{id}: Step 1 ('Fai bollire l acqua per 10 minuti') → step-timer + timer-start-10 shown. Tap → timer-clock '09:59', after 3s → '09:56'. timer-toggle pauses (value stable across 2s). timer-plus adds +60s (09:56 → 10:56). timer-reset returns to chip state. next-step to Step 2 ('Mescola bene') → step-timer count = 0 (no chips). next-step to Step 3 ('Cuoci 2-3 min') → timer-start-3 = 1 (upper bound), timer-start-2 = 0 (no duplicate) ✔.\n- Storico Cucinato: from Oggi, tap [data-testid=waste-stats] → navigates to /history. month-label 'Settembre 2026'. sum-cooked=3 initially. Tap first repeat-{id} → history-toast visible, sum-cooked=4 after refetch (+1). month-next has aria-disabled=true on current month. month-prev changes to 'Agosto 2026'. Tap a history-{id} entry → /recipe/rec_b0d0e1040eca ✔.\n- Spesa export: with 45 unchecked items → copy-list=1, share-list=1, share-whatsapp=0 on web. Tap copy-list → label switches from 'Copia' to 'Copiata!' and reverts after 2s. Clipboard content starts exactly with '🛒 Lista della spesa – CucinaSmart AI\\n\\n📍 Pane e cereali\\n☐ …' — aisle headers and checkbox format correct. When all items are checked, copy-list=0, share-list=0 (buttons correctly hidden) ✔.\n- Settings: [data-testid=settings-history] present and navigates to /history ✔.\n- Console: only expected web deprecations (shadow*/pointerEvents/expo-notifications web). No red screens, no unhandled runtime errors.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter6_features.py",
+    "/app/test_reports/pytest/pytest_iter6.xml",
+    "/app/test_reports/iteration_6.json"
+  ],
+  "action_items": [
+    "OPTIONAL/INFO: chef@cucina.ai already has 45 unchecked shopping items and multiple recipes/meals seeded from prior iterations. Not a bug; testers should be aware when validating 'empty state' UX on that account. Use fresh signup account for pristine flows.",
+    "OPTIONAL/INFO: When creating a meal for tomorrow that already has a meal in the same slot, Oggi's slot-pranzo shows the pre-existing meal (mealsQ.data.find returns the first match). This is the current expected behaviour; the review-request test still passes since a meal is shown, but if UX wants latest-first, sort by created_at desc before .find()."
+  ],
+  "critical_code_review_comments": [
+    "server.py is 1152 lines — still recommended to split into routers (auth, recipes, pantry, shopping, meals, stats, ai, storage, household). Carryover from iter4/5.",
+    "GET /api/stats/history (server.py:515) uses the same month-bucket field as /stats/waste — good consistency. Validates month regex → 400.",
+    "StepTimer.extractMinutes (StepTimer.tsx:24) correctly picks upper bound of range '2-3 min' → 3, dedupes, caps at 3 chips, supports 'mezz ora', 'un ora', 'quarto d ora' — matches spec.",
+    "history.tsx repeatM uses api<>() with body:JSON.stringify — good. onSuccess invalidates cook-history so entry count updates without manual refetch.",
+    "spesa.tsx buildText produces exact spec format ('🛒 Lista della spesa – CucinaSmart AI' header, '📍 aisle' section, '☐ name — qty unit' rows, skipping checked). Verified via navigator.clipboard.readText().",
+    "spesa.tsx correctly gates share/copy on openCount > 0 (line 131) and hides share-whatsapp on web via Platform.OS !== 'web' (line 137) — matches spec.",
+    "oggi.tsx week-strip mealsQ query key is ['meals','week',today] — cache correctly invalidates daily since queryKey includes today.",
+    "oggi.tsx slot Pressable navigates to /add-meal with {date: selDay, slot} when no meal — matches spec (line 188)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter6_features.py",
+    "/app/test_reports/pytest/pytest_iter6.xml",
+    "/app/test_reports/iteration_6.json"
+  ],
+  "success_rate": {"backend": "100% (6/6 iter6 pytest cases)", "frontend": "100% (all 7 review-request flows verified)"},
+  "seed_data_creation": "Backend pytest: fresh isolated signup user per module (test_iter6_<uuid>@cucinasmart.dev) creates 1 pantry (TEST_it6_Uova, fridge, +2d, price 3.0), 1 recipe (TEST_it6 Frittata), 4 meals (today/+3/+6/+30). Frontend on chef@cucina.ai: created recipe rec_26d8c2feafee (TEST_it6 Cook TimerX with 3 steps for timer verification) and a tomorrow meal 'TEST_Domani Pasta' via API.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "iter6 regression: /app/backend/tests/test_iter6_features.py runs in ~2s standalone (fresh signup user, no dependency on chef account). Key testIDs: week-strip, day-YYYY-MM-DD, slot-colazione/pranzo/cena (oggi.tsx); step-timer, timer-start-{n}, timer-clock, timer-toggle, timer-plus, timer-reset, timer-done, next-step (cook/[id].tsx + StepTimer.tsx); month-prev, month-next, month-label, sum-cooked, history-{id}, repeat-{id}, history-toast (history.tsx); copy-list, share-list, share-whatsapp, shop-row-{id}, add-shop-fab (spesa.tsx); settings-history, waste-stats. Server date confirmed 2026-09-26 via new Date().toISOString(). Auth: chef@cucina.ai / CucinaSmart2026; token stored in localStorage under 'cucinasmart_token'. BASE_URL from EXPO_BACKEND_URL or EXPO_PUBLIC_BACKEND_URL (both = https://app-builder-14436.preview.emergentagent.com). Set EXPO_BACKEND_URL env when running pytest locally (conftest.py raises otherwise).",
+  "rca_of_issue": "No bugs to root-cause. All 4 iteration-6 features passed backend (6/6 pytest) and frontend (7/7 UI flows) validation. One initial script assertion failed because chef account already had a tomorrow-colazione meal, so tapping that slot navigated to /recipe/{id} instead of /add-meal; retried on day+3 after deleting existing meals and it correctly went to /add-meal?date=<d3>&slot=colazione — behaviour is correct per spec ('empty slot → /add-meal')."
+}

@@ -40,6 +40,12 @@ Full kitchen command center: plan meals, cook with AI, run pantry/fridge/freezer
 - Lint frontend: 0 warning
 - Backlog: nessuno
 
+## Feature aggiunte (iteration_6)
+- Widget settimana in Oggi: strip 7 giorni (`day-YYYY-MM-DD`, pallini = pasti), query meals su 7 giorni, slot del giorno selezionato
+- Timer cucina: `src/components/StepTimer.tsx` estrae minuti dal passo (min/minuti/ore/mezz'ora/range), countdown con pausa/+1m/reset, haptics+vibrazione su nativo; key=idx resetta al cambio passo
+- Storico cucinato: `GET /api/stats/history?month=` da consumption_log; schermata `/history` con nav mese, riepilogo, "Ricucina" (ri-POST cooked stesse porzioni); link da card Anti-spreco e Impostazioni
+- Export spesa: pulsanti Condividi (Share nativo / clipboard su web), WhatsApp (deep link, nativo), Copia (expo-clipboard); testo raggruppato per corsia, esclusi i presi
+
 ## Feature aggiunte (iteration_5)
 - Cucinato!: `POST /api/recipes/{id}/cooked {servings}` scala la dispensa (min 0), i finiti vanno in spesa ("Finito cucinando: …"), log in `consumption_log {items[{pantry_id,name,used_qty,unit,days_left,price}], month}`
 - Ricerca ingredienti: `GET /api/recipes?q=&cookable=` cerca titolo/ingredienti/tag, restituisce `missing_count/missing_names/cookable` (q.b. e staples ignorati); chip "Con ciò che ho" + badge

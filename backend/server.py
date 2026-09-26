@@ -512,6 +512,23 @@ async def recipe_cooked(rid: str, body: CookedBody, request: Request):
                                          "items": log_items, "created_at": now, "month": now.strftime("%Y-%m"), **owned(user)})
     return {"updated": updated, "finished": finished, "added_to_shopping": added_shopping, "not_found": not_found, "items_saved": sum(1 for i in log_items if i["days_left"] is not None and i["days_left"] <= 3)}
 
+@api_router.get("/stats/history")
+async def cooked_history(request: Request, month: Optional[str] = None):
+    """Everything cooked in a month (most recent first)."""
+    user = await get_user(request)
+    m = month or datetime.now(timezone.utc).strftime("%Y-%m")
+    if not re.match(r"^\d{4}-\d{2}$", m):
+        raise HTTPException(400, "month non valido (YYYY-MM)")
+    logs = await db.consumption_log.find({**scope(user), "month": m}, {"_id": 0}).sort("created_at", -1).to_list(500)
+    out = []
+    for lg in logs:
+        items = lg.get("items", [])
+        out.append({"id": lg["id"], "recipe_id": lg.get("recipe_id"), "title": lg.get("title"), "servings": lg.get("servings"),
+                    "cooked_at": lg["created_at"].isoformat() if isinstance(lg["created_at"], datetime) else str(lg["created_at"]),
+                    "items_used": sum(1 for i in items if i.get("used_qty")),
+                    "items_saved": sum(1 for i in items if i.get("used_qty") and i.get("days_left") is not None and i["days_left"] <= 3)})
+    return {"month": m, "items": out}
+
 @api_router.get("/stats/waste")
 async def waste_stats(request: Request, month: Optional[str] = None):
     """Monthly anti-waste card: recipes cooked, items used, items saved from expiring (≤3 days), money not wasted."""
