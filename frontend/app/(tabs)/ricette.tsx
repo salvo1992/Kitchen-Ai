@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { useState, useMemo } from "react";
 import { api } from "@/src/api";
+import { usePullRefresh } from "@/src/use-pull-refresh";
 import { makeStyles, useTheme, spacing, radius } from "@/src/theme";
 
 const FALLBACK_IMG = "https://images.pexels.com/photos/1640775/pexels-photo-1640775.jpeg?w=600";
@@ -52,6 +53,7 @@ export default function Ricette() {
       return res.items;
     },
   });
+  const pull = usePullRefresh(listQ.refetch);
 
   const items = useMemo(() => {
     let arr = listQ.data || [];
@@ -85,7 +87,7 @@ export default function Ricette() {
         keyExtractor={(x) => x.id}
         numColumns={2}
         contentContainerStyle={{ paddingHorizontal: spacing.md, paddingBottom: insets.bottom + 100 }}
-        refreshControl={<RefreshControl refreshing={listQ.isFetching} onRefresh={() => listQ.refetch()} />}
+        refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} />}
         renderItem={({ item }) => (
           <Pressable testID={`recipe-${item.id}`} style={styles.card} onPress={() => router.push({ pathname: "/recipe/[id]", params: { id: item.id } })}>
             <Image source={item.image_url || FALLBACK_IMG} style={{ width: "100%", height: "100%" }} contentFit="cover" />

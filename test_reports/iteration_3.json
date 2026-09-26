@@ -1,0 +1,39 @@
+{
+  "summary": "CucinaSmart AI 4 NEW features fully tested end-to-end on the public preview URL. Backend: 8/8 pytest cases pass in /app/backend/tests/test_new_features.py (barcode lookup Nutella found + unknown false + 401 without auth, recipe-to-shopping flow with pantry-match + duplicate detection + aisle guess + 'Per: <title>' note + 404 for missing recipe, ingredient normalization with '200 g'/'q.b.'/numeric strings, AI weekly plan generation returning 7 days x 3 slots with normalized ingredients and successful save creating recipes+meals linked via recipe_id, household create/join/leave with cross-visibility of pantry items before AND after join and proper isolation after leave). Frontend (mobile viewport 390x844, chef@cucina.ai + nonna@cucina.ai): Oggi shows both 'Piano settimanale' and 'Scansiona' shortcuts; /scan-barcode with 3017624010701 returns product card 'Nutella' prefilled name 'Nutella Ferrero', save to Frigo works and item appears in Dispensa->Frigo; unknown code 0000000000000 shows 'non trovato' message and manual save form. Dispensa shows orange scan-barcode-fab above +. Recipe detail 'Mancanti -> Spesa' returned '2 ingredienti aggiunti alla spesa'. /weekly-plan generated 7 day cards and 'Salva nel calendario' produced 21 meals + 20 recipes; 'Apri il calendario' shows meals. /family: chef created 'Casa Test' (6-char invite code 1EA529, TU badge present); nonna joined -> 2 members; both leave/cleanup succeeded. Only 1 non-deprecation console warning: React Navigation 'GO_BACK not handled' after scan-barcode save when opened directly (no history stack). No red-screen errors, no failed API calls.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "scan-barcode router.back()", "issue": "When /scan-barcode is opened directly (no prior in-app navigation) and the item is saved, router.back() logs a dev-only warning: \"The action 'GO_BACK' was not handled by any navigator.\" Occurs on web after successful pantry save. Consider fallback: router.canGoBack() ? router.back() : router.replace('/(tabs)/dispensa')", "testID": "scan-save", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_new_features.py",
+    "/app/test_reports/pytest/pytest_new_features.xml",
+    "/app/test_reports/iteration_3.json"
+  ],
+  "action_items": [
+    "OPTIONAL LOW: guard router.back() in scan-barcode.tsx (and other stand-alone screens that can be opened via deep link) with router.canGoBack() to silence the 'GO_BACK not handled' dev warning on web.",
+    "OPTIONAL: RecipeCreate pydantic model uses List[Dict[str, Any]] for ingredients, so raw string ingredients like '200 g farina' via /api/recipes return 422 (only norm_ingredients on the server-side path supports the string form; the client always sends dicts). Consider Union[str, Dict] if you want the API to accept raw strings from external callers."
+  ],
+  "critical_code_review_comments": [
+    "server.py has grown to 899 lines; consider splitting routers (auth/recipes/pantry/shopping/meals/household/ai/storage). Not a bug, just maintainability.",
+    "guess_aisle heuristic is comprehensive but 'basilico' matches 'basilic' correctly. Good defensive lowercase + Italian-aware keywords.",
+    "Weekly plan save with replace:true deletes existing meals in the [start_date, end_date] range for all 3 SLOTS — this is intended per code; documented in note text.",
+    "family.tsx and weekly-plan.tsx correctly branch Platform.OS==='web' to skip Alert.alert and act directly — matches request.",
+    "Household _attach_docs updates household_id on the 4 shared collections when joining/leaving; items created BEFORE joining correctly become visible to other members after join (verified in test_family_flow)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_new_features.py",
+    "/app/test_reports/iteration_3.json",
+    "/app/test_reports/pytest/pytest_new_features.xml"
+  ],
+  "success_rate": {"backend": "100% (8/8 new-feature tests)", "frontend": "100% (11/11 requested flows)"},
+  "seed_data_creation": "Chef account produced during this run: 1 Nutella item in Frigo (from barcode save), 20+ AI-generated recipes tagged 'piano AI', 21 meals for the upcoming week (Piano settimanale AI). All households created during backend + frontend tests were left/cleaned up. Note: chef's pantry may still contain the 'pomodori/pasta/uova' items created for the weekly plan test — safe TEST_ prefixed items were cleaned up but pantry items added without prefix by the /ai/weekly-plan test remain (used for future retest fixture stability).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend regression suite: /app/backend/tests/test_new_features.py (independent of iteration_1 test_cucinasmart_api.py). Both can be run together. New feature testIDs on frontend: scan-barcode-fab (dispensa), barcode-input/barcode-lookup/product-card/product-not-found/scan-name/scan-qty/scan-unit/scan-loc-{pantry,fridge,freezer}/scan-expires/scan-save (scan-barcode), to-shopping/to-shopping-result (recipe detail), plan-prefs/generate-plan/regenerate-plan/plan-day-<date>/save-plan/plan-saved/go-calendar (weekly-plan), family-name/family-create/family-code/family-join/family-title/invite-code/share-code/member-<uid>/family-leave/join-error (family). Chef and nonna accounts should NOT be in a household at end-of-run (both left for cleanup). Weekly plan takes 20-40s (real Gemini 3 Flash).",
+  "rca_of_issue": "No blocking bugs. The single console warning (GO_BACK not handled) is a benign React Navigation dev-mode message that appears only when /scan-barcode is loaded directly via URL rather than via the Dispensa FAB. When user navigated in via the FAB, router.back() works normally. Recommended one-line fix in /app/frontend/app/scan-barcode.tsx onSuccess of saveM: replace router.back() with router.canGoBack() ? router.back() : router.replace('/(tabs)/dispensa')."
+}

@@ -35,10 +35,17 @@ Full kitchen command center: plan meals, cook with AI, run pantry/fridge/freezer
 - file_tokens {token, path, user_id, expires_at} (TTL)
 
 ## Status (Giugno 2026)
-- Backend: 32/32 test OK (iteration_1)
-- Frontend E2E: 11/11 flussi OK (iteration_2) — login, Oggi, Ricette (+dettaglio, cook passo-passo), Dispensa, Spesa, Calendario/add-meal, Chef AI (Gemini), Cosa cucino, Import foto (render), Settings/logout
+- Backend: 32/32 test OK (iteration_1) + 8/8 nuove feature (iteration_3)
+- Frontend E2E: 11/11 flussi base (iteration_2) + 11/11 nuove feature (iteration_3)
 - Lint frontend: 0 warning
 - Backlog: notifiche push per scadenze (richiede build nativa)
+
+## Feature aggiunte (iteration_3)
+- Scanner barcode (`/scan-barcode`, expo-camera + Open Food Facts via `GET /api/products/barcode/{code}`); web = inserimento manuale
+- Spesa da ricetta: `POST /api/recipes/{id}/to-shopping` (mancanti vs dispensa/lista, corsia stimata, nota "Per: …")
+- Piano settimanale AI (`/weekly-plan`): `POST /api/ai/weekly-plan` (preview, Gemini) → `POST /api/ai/weekly-plan/save` (crea ricette con ingredienti normalizzati + pasti con recipe_id, sostituisce i 7 giorni)
+- Famiglia (`/family`): households {id,name,owner_id,invite_code,members[]}; users.household_id; docs condivisi hanno household_id; `scope(user)` filtra own+household; join/leave migrano i doc; sync via polling React Query 8s
+- Normalizzazione ingredienti lato backend (`norm_ingredients`) su create/patch ricette e output AI
 
 ## Env
 Backend: MONGO_URL, DB_NAME, EMERGENT_LLM_KEY, JWT_SECRET, APP_NAME=cucinasmart-ai

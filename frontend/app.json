@@ -9,14 +9,19 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.emergent.appbuilder.caeb4l"
+      "bundleIdentifier": "com.emergent.appbuilder.caeb4l",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Scansiona codici a barre e fotografa piani pasto",
+        "NSPhotoLibraryUsageDescription": "Importa foto di piani pasto e ricette"
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#000000"
       },
-      "package": "com.emergent.appbuilder.caeb4l"
+      "package": "com.emergent.appbuilder.caeb4l",
+      "permissions": ["android.permission.CAMERA", "android.permission.READ_MEDIA_IMAGES"]
     },
     "web": {
       "bundler": "metro",
@@ -36,6 +41,12 @@
       ],
       "expo-font",
       "expo-image",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Scansiona codici a barre e fotografa piani pasto"
+        }
+      ],
       "expo-secure-store",
       "expo-web-browser",
       "expo-status-bar",

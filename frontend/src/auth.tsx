@@ -6,7 +6,7 @@ import { api, getToken, setToken } from "./api";
 
 WebBrowser.maybeCompleteAuthSession();
 
-type User = { user_id: string; email: string; name?: string | null; picture?: string | null };
+type User = { user_id: string; email: string; name?: string | null; picture?: string | null; household_id?: string | null };
 
 type AuthCtx = {
   user: User | null;
@@ -15,6 +15,7 @@ type AuthCtx = {
   signUp: (email: string, password: string, name: string) => Promise<void>;
   signInGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
+  refresh: () => Promise<void>;
 };
 
 const Ctx = createContext<AuthCtx | null>(null);
@@ -130,7 +131,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   };
 
-  return <Ctx.Provider value={{ user, loading, signIn, signUp, signInGoogle, signOut }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ user, loading, signIn, signUp, signInGoogle, signOut, refresh: check }}>{children}</Ctx.Provider>;
 }
 
 export function useAuth() {

@@ -3,7 +3,9 @@ import Ionicons from "@react-native-vector-icons/ionicons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo } from "react";
+import { useRouter } from "expo-router";
 import { api } from "@/src/api";
+import { usePullRefresh } from "@/src/use-pull-refresh";
 import { makeStyles, useTheme, spacing, radius } from "@/src/theme";
 
 const useStyles = makeStyles((c) => ({
@@ -26,6 +28,7 @@ const useStyles = makeStyles((c) => ({
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.pill },
   badgeText: { fontSize: 11, fontWeight: "700" },
   fab: { position: "absolute", right: spacing.lg, backgroundColor: c.brandPrimary, width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 8, elevation: 6 },
+  scanFab: { position: "absolute", right: spacing.lg, backgroundColor: c.brandSecondary, width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 8, elevation: 6 },
   empty: { alignItems: "center", padding: spacing.xl, marginTop: spacing.xl },
   emptyTxt: { color: c.muted, marginTop: spacing.md, textAlign: "center" },
   modalBg: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
@@ -56,6 +59,7 @@ export default function Dispensa() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
+  const router = useRouter();
   const [tab, setTab] = useState<"pantry" | "fridge" | "freezer">("pantry");
   const [showAdd, setShowAdd] = useState(false);
   const [name, setName] = useState("");
@@ -67,6 +71,7 @@ export default function Dispensa() {
     queryKey: ["pantry", tab],
     queryFn: async () => (await api<{ items: any[] }>(`/api/pantry?location=${tab}`)).items,
   });
+  const pull = usePullRefresh(listQ.refetch);
 
   const addM = useMutation({
     mutationFn: (body: any) => api("/api/pantry", { method: "POST", body: JSON.stringify(body) }),
@@ -131,7 +136,7 @@ export default function Dispensa() {
         </View>
       </View>
 
-      <ScrollView refreshControl={<RefreshControl refreshing={listQ.isFetching} onRefresh={() => listQ.refetch()} />} contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}>
+      <ScrollView refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} />} contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}>
         {useFirst.length > 0 && (
           <>
             <View style={styles.sectionHead}>
@@ -155,10 +160,14 @@ export default function Dispensa() {
         {items.length === 0 && (
           <View style={styles.empty}>
             <Ionicons name="basket-outline" size={48} color={colors.muted} />
-            <Text style={styles.emptyTxt}>Nessun articolo in {LOCATIONS.find(l => l.key === tab)?.label}.{"\n"}Aggiungi il primo con +</Text>
+            <Text style={styles.emptyTxt}>Nessun articolo in {LOCATIONS.find(l => l.key === tab)?.label}.{"\n"}Aggiungi il primo con + o scansiona un codice a barre</Text>
           </View>
         )}
       </ScrollView>
+
+      <Pressable testID="scan-barcode-fab" onPress={() => router.push({ pathname: "/scan-barcode", params: { location: tab } })} style={[styles.scanFab, { bottom: insets.bottom + 168 }]}>
+        <Ionicons name="barcode-outline" size={24} color={colors.onBrandSecondary} />
+      </Pressable>
 
       <Pressable testID="add-pantry-fab" onPress={() => setShowAdd(true)} style={[styles.fab, { bottom: insets.bottom + 100 }]}>
         <Ionicons name="add" size={28} color={colors.onBrandPrimary} />

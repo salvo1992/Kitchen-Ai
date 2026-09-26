@@ -46,6 +46,7 @@ export default function Calendar() {
       <View style={styles.header}>
         <Pressable style={styles.back} onPress={() => router.back()}><Ionicons name="arrow-back" size={20} color={colors.onSurface} /></Pressable>
         <Text style={styles.title}>Calendario pasti</Text>
+        <Pressable testID="ai-plan-cal" onPress={() => router.push("/weekly-plan")} style={{ marginRight: spacing.sm }}><Ionicons name="sparkles" size={24} color={colors.brandSecondary} /></Pressable>
         <Pressable testID="add-meal-cal" onPress={() => router.push("/add-meal")}><Ionicons name="add-circle" size={28} color={colors.brandPrimary} /></Pressable>
       </View>
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
@@ -58,10 +59,10 @@ export default function Calendar() {
                 <Text style={styles.dayLabel}>{DAY_NAMES[d.getDay()]} {d.getDate()}/{d.getMonth() + 1}</Text>
                 {meals.length === 0 && <Text style={{ color: colors.muted, fontStyle: "italic" }}>Tocca per aggiungere un pasto</Text>}
                 {meals.map((m) => (
-                  <View key={m.id} style={styles.slotRow}>
+                  <Pressable key={m.id} testID={`meal-${m.id}`} style={styles.slotRow} onPress={() => m.recipe_id ? router.push({ pathname: "/recipe/[id]", params: { id: m.recipe_id } }) : router.push({ pathname: "/add-meal", params: { date: key } })}>
                     <Text style={styles.slotLabel}>{m.slot}</Text>
-                    <Text style={styles.slotTitle} numberOfLines={1}>{m.title}</Text>
-                  </View>
+                    <Text style={[styles.slotTitle, m.recipe_id && { color: colors.brandPrimary }]} numberOfLines={1}>{m.title}{m.recipe_id ? " ›" : ""}</Text>
+                  </Pressable>
                 ))}
               </View>
             </Pressable>

@@ -8,6 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
+import { usePullRefresh } from "@/src/use-pull-refresh";
 import { makeStyles, useTheme, spacing, radius } from "@/src/theme";
 
 const HERO_IMAGES: Record<string, string> = {
@@ -78,6 +79,7 @@ export default function Oggi() {
     queryKey: ["shopping"],
     queryFn: async () => (await api<{ items: any[] }>("/api/shopping")).items,
   });
+  const pull = usePullRefresh(() => Promise.all([mealsQ.refetch(), pantryQ.refetch(), shopQ.refetch()]));
 
   const expiringCount = useMemo(() => {
     const items = pantryQ.data || [];
@@ -95,7 +97,7 @@ export default function Oggi() {
       <ScrollView
         contentContainerStyle={{ ...styles.scroll, paddingTop: insets.top + spacing.sm, paddingBottom: bottomChrome + 100 }}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={mealsQ.isFetching || pantryQ.isFetching} onRefresh={() => { mealsQ.refetch(); pantryQ.refetch(); shopQ.refetch(); }} />}
+        refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} />}
       >
         <View style={styles.greetRow}>
           <View>
@@ -130,7 +132,7 @@ export default function Oggi() {
                 key={slot}
                 testID={`slot-${slot}`}
                 style={[styles.slot, !meal && styles.emptySlot]}
-                onPress={() => router.push({ pathname: "/add-meal", params: { date: todayStr(), slot } as any })}
+                onPress={() => meal?.recipe_id ? router.push({ pathname: "/recipe/[id]", params: { id: meal.recipe_id } }) : router.push({ pathname: "/add-meal", params: { date: todayStr(), slot } as any })}
               >
                 {meal ? (
                   <>
@@ -156,6 +158,16 @@ export default function Oggi() {
         <View style={styles.section}>
           <View style={styles.sectionHead}><Text style={styles.sectionTitle}>Scorciatoie</Text></View>
           <View style={styles.quickRow}>
+            <Pressable testID="quick-plan" style={styles.quick} onPress={() => router.push("/weekly-plan")}>
+              <View style={[styles.quickIcon, { backgroundColor: colors.brandSecondary }]}><Ionicons name="calendar" size={20} color={colors.onBrandSecondary} /></View>
+              <Text style={styles.quickTitle}>Piano settimanale</Text>
+              <Text style={styles.quickSub}>7 giorni con Chef AI</Text>
+            </Pressable>
+            <Pressable testID="quick-scan" style={styles.quick} onPress={() => router.push("/scan-barcode")}>
+              <View style={styles.quickIcon}><Ionicons name="barcode" size={20} color={colors.brandPrimary} /></View>
+              <Text style={styles.quickTitle}>Scansiona</Text>
+              <Text style={styles.quickSub}>Aggiungi in dispensa</Text>
+            </Pressable>
             <Pressable testID="quick-cook" style={styles.quick} onPress={() => router.push("/what-can-i-cook")}>
               <View style={styles.quickIcon}><Ionicons name="restaurant" size={20} color={colors.brandPrimary} /></View>
               <Text style={styles.quickTitle}>Cosa cucino?</Text>

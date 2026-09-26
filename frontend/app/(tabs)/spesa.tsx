@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { api } from "@/src/api";
+import { usePullRefresh } from "@/src/use-pull-refresh";
 import { makeStyles, useTheme, spacing, radius } from "@/src/theme";
 
 const AISLES = ["Frutta e verdura", "Carne e pesce", "Latticini", "Pane e cereali", "Dispensa", "Surgelati", "Bevande", "Altro"];
@@ -52,6 +53,7 @@ export default function Spesa() {
     queryKey: ["shopping"],
     queryFn: async () => (await api<{ items: any[] }>("/api/shopping")).items,
   });
+  const pull = usePullRefresh(listQ.refetch);
 
   const addM = useMutation({
     mutationFn: (b: any) => api("/api/shopping", { method: "POST", body: JSON.stringify(b) }),
@@ -112,7 +114,7 @@ export default function Spesa() {
         data={flat}
         keyExtractor={(x) => x.id}
         contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
-        refreshControl={<RefreshControl refreshing={listQ.isFetching} onRefresh={() => listQ.refetch()} />}
+        refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} />}
         renderItem={({ item }) => {
           if (item._header) {
             return <View style={styles.aisleHead}><Text style={styles.aisleTitle}>{item._header}</Text></View>;
@@ -124,7 +126,7 @@ export default function Spesa() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.rowText, item.checked && styles.rowTextChecked]}>{item.name}</Text>
-                <Text style={styles.rowMeta}>{item.qty} {item.unit}</Text>
+                <Text style={styles.rowMeta}>{item.unit === "q.b." ? "q.b." : `${item.qty} ${item.unit}`}{item.note ? `  ·  ${item.note}` : ""}</Text>
               </View>
               <Pressable onPress={() => del.mutate(item.id)} style={{ padding: spacing.sm }}>
                 <Ionicons name="close" size={18} color={colors.muted} />

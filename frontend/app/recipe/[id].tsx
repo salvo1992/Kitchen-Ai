@@ -26,6 +26,10 @@ const useStyles = makeStyles((c) => ({
   stepNumTxt: { color: c.onBrandPrimary, fontWeight: "700", fontSize: 12 },
   cookBtn: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: spacing.sm, backgroundColor: c.brandPrimary, borderRadius: radius.pill, paddingVertical: 16, marginTop: spacing.lg },
   cookTxt: { color: c.onBrandPrimary, fontWeight: "700", fontSize: 16 },
+  shopBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: c.brandTertiary, borderRadius: radius.pill, paddingVertical: 8, paddingHorizontal: spacing.md, alignSelf: "flex-start" },
+  shopBtnTxt: { color: c.brandPrimary, fontWeight: "700", fontSize: 13 },
+  resultBox: { backgroundColor: c.brandTertiary, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm, gap: 4 },
+  resultLine: { color: c.onBrandTertiary, fontSize: 13 },
 }));
 
 const FALLBACK = "https://images.pexels.com/photos/1640775/pexels-photo-1640775.jpeg?w=800";
@@ -51,6 +55,11 @@ export default function RecipeDetail() {
   const delM = useMutation({
     mutationFn: () => api(`/api/recipes/${id}`, { method: "DELETE" }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["recipes"] }); router.back(); },
+  });
+
+  const shopM = useMutation({
+    mutationFn: () => api<{ added: any[]; in_pantry: string[]; already_listed: string[] }>(`/api/recipes/${id}/to-shopping`, { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["shopping"] }),
   });
 
   if (q.isLoading || !q.data) return <View style={styles.root}><ActivityIndicator style={{ marginTop: 80 }} color={colors.brandPrimary} /></View>;
@@ -83,12 +92,31 @@ export default function RecipeDetail() {
 
           {(r.ingredients || []).length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Ingredienti</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.sm }}>
+                <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Ingredienti</Text>
+                <Pressable testID="to-shopping" style={styles.shopBtn} onPress={() => shopM.mutate()} disabled={shopM.isPending}>
+                  {shopM.isPending ? <ActivityIndicator size="small" color={colors.brandPrimary} /> : <Ionicons name="cart-outline" size={16} color={colors.brandPrimary} />}
+                  <Text style={styles.shopBtnTxt}>Mancanti → Spesa</Text>
+                </Pressable>
+              </View>
+              {shopM.data && (
+                <View style={styles.resultBox} testID="to-shopping-result">
+                  <Text style={[styles.resultLine, { fontWeight: "700" }]}>
+                    {shopM.data.added.length > 0 ? `${shopM.data.added.length} ingredienti aggiunti alla spesa` : "Nessun ingrediente da aggiungere"}
+                  </Text>
+                  {shopM.data.in_pantry.length > 0 && <Text style={styles.resultLine}>✓ Già in dispensa: {shopM.data.in_pantry.join(", ")}</Text>}
+                  {shopM.data.already_listed.length > 0 && <Text style={styles.resultLine}>• Già in lista: {shopM.data.already_listed.join(", ")}</Text>}
+                  {shopM.data.added.length > 0 && (
+                    <Pressable onPress={() => router.push("/(tabs)/spesa")} style={{ marginTop: 4 }}><Text style={{ color: colors.brandPrimary, fontWeight: "700", fontSize: 13 }}>Vai alla lista →</Text></Pressable>
+                  )}
+                </View>
+              )}
+              {shopM.isError && <Text style={{ color: colors.error, marginBottom: spacing.sm }}>Errore, riprova</Text>}
               {r.ingredients.map((i: any, idx: number) => (
                 <View key={idx} style={styles.ingRow}>
                   <Ionicons name="leaf" size={14} color={colors.brandPrimary} />
                   <Text style={{ color: colors.onSurface, flex: 1 }}>{i.name}</Text>
-                  <Text style={{ color: colors.muted }}>{i.qty} {i.unit}</Text>
+                  <Text style={{ color: colors.muted }}>{i.unit === "q.b." ? "q.b." : `${i.qty} ${i.unit}`}</Text>
                 </View>
               ))}
             </View>
