@@ -21,8 +21,9 @@ client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ["DB_NAME"]]
 
 EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
-JWT_SECRET = os.environ.get("JWT_SECRET", "dev-secret")
 APP_NAME = os.environ.get("APP_NAME", "cucinasmart-ai")
+# Emergent-managed Google Auth session-exchange endpoint (fixed platform URL from the integration playbook; overridable via env)
+EMERGENT_AUTH_SESSION_URL = os.environ.get("EMERGENT_AUTH_SESSION_URL", "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data")
 
 STORAGE_BASE = (os.environ.get("INTEGRATION_PROXY_URL") or "").strip() or "https://integrations.emergentagent.com"
 STORAGE_URL = STORAGE_BASE.rstrip("/") + "/objstore/api/v1/storage"
@@ -313,7 +314,7 @@ async def signin(body: SignInBody):
 async def exchange_session(body: SessionExchangeBody):
     async with httpx.AsyncClient(timeout=30) as hc:
         resp = await hc.get(
-            "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
+            EMERGENT_AUTH_SESSION_URL,
             headers={"X-Session-ID": body.session_id},
         )
     if resp.status_code != 200:
@@ -343,6 +344,22 @@ async def exchange_session(body: SessionExchangeBody):
 async def auth_me(request: Request):
     user = await get_user(request)
     return {"user": user}
+
+@api_router.delete("/auth/account")
+async def delete_account(request: Request):
+    """Permanently delete the user, their sessions and all personal data (App Store requirement)."""
+    user = await get_user(request)
+    uid = user["user_id"]
+    hid = user.get("household_id")
+    if hid:
+        await db.households.update_one({"id": hid}, {"$pull": {"members": uid}})
+        h = await db.households.find_one({"id": hid}, {"_id": 0, "members": 1})
+        if h and not h.get("members"):
+            await db.households.delete_one({"id": hid})
+    for coll in SHARED_COLLECTIONS + ["consumption_log", "chat_messages", "uploads", "file_tokens", "user_sessions"]:
+        await db[coll].delete_many({"user_id": uid})
+    await db.users.delete_one({"user_id": uid})
+    return {"ok": True}
 
 @api_router.post("/auth/logout")
 async def logout(request: Request):
@@ -617,7 +634,7 @@ async def barcode_lookup(code: str, request: Request):
     url = f"https://world.openfoodfacts.org/api/v2/product/{code}.json"
     params = {"fields": "product_name,product_name_it,brands,image_front_url,image_front_small_url,quantity,categories_tags"}
     try:
-        async with httpx.AsyncClient(timeout=12, headers={"User-Agent": "CucinaSmartAI/1.0 (contact@cucinasmart.app)"}) as cx:
+        async with httpx.AsyncClient(timeout=12, headers={"User-Agent": "SmartKitchenAI/1.0"}) as cx:
             r = await cx.get(url, params=params)
         data = r.json() if r.status_code == 200 else {}
     except Exception as e:
@@ -814,7 +831,7 @@ async def leave_household(request: Request):
 # ---------- Chef AI ----------
 def _chef_system_prompt():
     return (
-        "Sei 'Chef AI', l'assistente italiano di CucinaSmart AI. "
+        "Sei 'Chef AI', l'assistente italiano di Smart Kitchen AI. "
         "Aiuti l'utente con ricette, pianificazione pasti, lista della spesa, uso di ingredienti "
         "della dispensa/frigo/freezer e riduzione degli sprechi. "
         "Rispondi sempre in italiano, con un tono caldo, chiaro e amichevole. "
@@ -1114,7 +1131,7 @@ async def files(path: str, request: Request, token: Optional[str] = Query(None))
 
 @api_router.get("/")
 async def root():
-    return {"app": "CucinaSmart AI", "ok": True}
+    return {"app": "Smart Kitchen AI", "ok": True}
 
 
 app.include_router(api_router)
@@ -1135,7 +1152,12 @@ async def on_startup():
         await db.shopping.create_index([("user_id", 1), ("created_at", -1)])
         await db.meals.create_index([("user_id", 1), ("date", 1)])
         await db.chat_messages.create_index([("user_id", 1), ("session_id", 1), ("created_at", 1)])
-        await db.file_tokens.create_index("expires_at", expireAfterSeconds=0)
+        # file tokens: expiry is enforced at read time in /files; no TTL auto-deletion (recipe photos need long-lived tokens)
+        try:
+            await db.file_tokens.drop_index("expires_at_1")
+        except Exception:
+            pass
+        await db.file_tokens.create_index([("token", 1), ("path", 1)])
         await db.households.create_index("invite_code", unique=True)
         for coll in SHARED_COLLECTIONS:
             await db[coll].create_index("household_id")

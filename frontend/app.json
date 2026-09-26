@@ -1,15 +1,15 @@
 {
   "expo": {
-    "name": "frontend",
-    "slug": "frontend",
+    "name": "Smart Kitchen AI",
+    "slug": "smart-kitchen-ai",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "frontend",
+    "scheme": "smartkitchenai",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.emergent.appbuilder.caeb4l",
+      "bundleIdentifier": "com.smartkitchenai.app",
       "infoPlist": {
         "NSCameraUsageDescription": "Scansiona codici a barre e fotografa piani pasto",
         "NSPhotoLibraryUsageDescription": "Importa foto di piani pasto e ricette"
@@ -20,8 +20,8 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#000000"
       },
-      "package": "com.emergent.appbuilder.caeb4l",
-      "permissions": ["android.permission.CAMERA", "android.permission.READ_MEDIA_IMAGES"]
+      "package": "com.smartkitchenai.app",
+      "permissions": ["android.permission.CAMERA", "android.permission.READ_MEDIA_IMAGES", "android.permission.POST_NOTIFICATIONS", "android.permission.VIBRATE"]
     },
     "web": {
       "bundler": "metro",

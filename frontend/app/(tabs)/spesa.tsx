@@ -96,7 +96,7 @@ export default function Spesa() {
   const [copied, setCopied] = useState(false);
 
   const buildText = () => {
-    const lines: string[] = ["🛒 Lista della spesa – CucinaSmart AI", ""];
+    const lines: string[] = ["🛒 Lista della spesa – Smart Kitchen AI", ""];
     for (const key of Object.keys(grouped)) {
       const open = grouped[key].filter((i: any) => !i.checked);
       if (open.length === 0) continue;

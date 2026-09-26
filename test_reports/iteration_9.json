@@ -1,0 +1,31 @@
+{
+  "summary": "Iteration 9 smoke regression after 'Smart Kitchen AI' rebrand: ALL GREEN. Backend 7/7 pytest pass — GET /api/ returns {app:'Smart Kitchen AI', ok:true}; POST /api/auth/signin chef@cucina.ai/CucinaSmart2026 issues a valid Bearer session_token; GET /api/auth/me confirms user; GET /api/recipes, /api/pantry, /api/shopping, /api/household all 200 with expected shape. Frontend loads with no red screen: login hero shows brand 'Smart Kitchen AI' and subtitle 'Il tuo assistente cucina intelligente'; after chef login the app routes to /oggi which renders the Buongiorno greeting, the week-strip (Oggi/Dom/Lun/Mar/Mer/Gio/Ven), and the Anti-spreco (waste-stats) card ('4 ricette cucinate / 4 salvati dalla scadenza / 11,50 € non sprecati'); tab navigation to /ricette, /dispensa and /spesa all render populated lists. Shopping export header string is confirmed in source: /app/frontend/app/(tabs)/spesa.tsx line 'const lines: string[] = [\"🛒 Lista della spesa – Smart Kitchen AI\", \"\"];'. app.json rebrand fully applied (name/slug/scheme/bundleId/package all Smart Kitchen AI). Android POST_NOTIFICATIONS permission present in app.json. Console: only known web-only deprecations (expo-notifications web push, RN Web shadow*/pointerEvents style warnings) and a couple of pre-login 401s which are expected (unauth /auth/me probe before session hydration). No deprecated Expo packages (no expo-av / expo-barcode-scanner / expo-background-fetch). No SafeAreaView issues.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter9_smoke.py",
+    "/app/test_reports/pytest/pytest_iter9.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "backend/server.py:1132-1134 correctly renames root payload to {app:'Smart Kitchen AI', ok:true}.",
+    "backend/server.py:637 already sends User-Agent 'SmartKitchenAI/1.0' to Open Food Facts, consistent with the rebrand.",
+    "APP_NAME env default at server.py:24 is still 'cucinasmart-ai' — this only affects the storage path prefix (line 1067). It is harmless (old files continue to work) but for full brand cleanup consider setting APP_NAME='smart-kitchen-ai' in backend/.env. NOT a blocker.",
+    "frontend/app.json bundle/package = com.smartkitchenai.app; scheme=smartkitchenai; slug=smart-kitchen-ai — all consistent for TestFlight/Play submission.",
+    "frontend/.env METRO_CACHE_ROOT is quoted correctly; EXPO_PUBLIC_BACKEND_URL points to preview host."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter9_smoke.py (new)"
+  ],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "100% (login brand, /oggi week-strip + waste stats, Ricette/Dispensa/Spesa tabs)"},
+  "seed_data_creation": "None. Used pre-existing chef@cucina.ai seed account; no writes.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter 9 smoke: /app/backend/tests/test_iter9_smoke.py (7 tests) exercises GET /api/, signin, /auth/me, and list endpoints (recipes/pantry/shopping/household). It reads EXPO_BACKEND_URL first, then falls back to EXPO_PUBLIC_BACKEND_URL from frontend/.env. Login testIDs unchanged: auth-email-input, auth-password-input, auth-submit-btn. Post-login lands on /oggi. Tab labels 'Oggi'/'Ricette'/'Dispensa'/'Spesa' are tappable via get_by_text. Optional cleanup: set APP_NAME=smart-kitchen-ai in backend/.env for full brand alignment on new upload paths (existing paths remain valid).",
+  "rca_of_issue": "N/A — rebrand + deployment-readiness smoke passed on first run."
+}

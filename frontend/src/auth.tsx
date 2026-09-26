@@ -15,6 +15,7 @@ type AuthCtx = {
   signUp: (email: string, password: string, name: string) => Promise<void>;
   signInGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
   refresh: () => Promise<void>;
 };
 
@@ -131,7 +132,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   };
 
-  return <Ctx.Provider value={{ user, loading, signIn, signUp, signInGoogle, signOut, refresh: check }}>{children}</Ctx.Provider>;
+  const deleteAccount = async () => {
+    await api("/api/auth/account", { method: "DELETE" });
+    await setToken(null);
+    setUser(null);
+  };
+
+  return <Ctx.Provider value={{ user, loading, signIn, signUp, signInGoogle, signOut, deleteAccount, refresh: check }}>{children}</Ctx.Provider>;
 }
 
 export function useAuth() {

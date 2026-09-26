@@ -69,7 +69,7 @@ export default function Family() {
   };
 
   const share = async (c: string) => {
-    try { await Share.share({ message: `Unisciti alla mia famiglia su CucinaSmart AI! Codice invito: ${c}` }); } catch {}
+    try { await Share.share({ message: `Unisciti alla mia famiglia su Smart Kitchen AI! Codice invito: ${c}` }); } catch {}
   };
 
   const h = hQ.data?.household;

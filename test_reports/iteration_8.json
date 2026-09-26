@@ -1,0 +1,29 @@
+{
+  "summary": "Iteration 8 verification (small): backend + frontend all green. Backend cleanly starts (GET /api/ → {app:'CucinaSmart AI', ok:true}); the file_tokens collection has NO TTL index (expireAfterSeconds absent everywhere) and DOES have the compound token_1_path_1 index. Upload flow verified end-to-end for chef@cucina.ai: POST /api/upload-base64 with a tiny PNG data URI returns 200 with url='/api/files/<path>?token=<tok>'; that url loads 200 image/png WITHOUT any Authorization header; wrong query token → 401; Bearer-only (no query token) → 200 image/png. PATCH /api/recipes/{id} persists image_url and subsequent GET returns it; GET /api/recipes list also returns the recipe. Frontend: chef login → /ricette shows the full catalogue → opening a recipe detail renders with image header (recipe-photo, edit-recipe, cook-mode all present) and no red screen. No deprecated Expo packages introduced by this fix. No SafeAreaView issues detected on the touched screens.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter8_file_tokens.py",
+    "/app/test_reports/pytest/pytest_iter8.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py on_startup lines 1154-1158 correctly drop legacy TTL index expires_at_1 (best-effort try/except) then create compound index (token,path) — verified live via motor index_information().",
+    "server.py /api/files/{path} lines 1102-1127: dual auth (Bearer OR ?token=), token expiry enforced at read time (timezone-aware compare on line 1116-1117), 401 on missing/invalid credentials, 404 when the upload doc doesn't belong to the resolved user — clean and correct.",
+    "_store_upload lines 1064-1071 mints a 10-year token (timedelta(days=3650)) which is what enables <Image> to display recipe photos without headers — matches the deployment fix goal."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter8_file_tokens.py (new)"
+  ],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "100% (login → Ricette → recipe detail renders with image header, no red screen)"},
+  "seed_data_creation": "test_iter8_file_tokens.py creates one TEST_ recipe, patches it with the freshly-uploaded image_url, verifies, then DELETEs it. chef@cucina.ai account is used but not modified beyond one recipe roundtrip.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter 8 tests live at /app/backend/tests/test_iter8_file_tokens.py. They read MONGO_URL/DB_NAME from env (fallback mongodb://localhost:27017/test_database), and EXPO_BACKEND_URL (fallback to EXPO_PUBLIC_BACKEND_URL). Recipes list returns {items:[...]}, POST /api/recipes returns {id:'rec_...', ...}. /api/files/{path} accepts either Bearer or ?token=. TTL on file_tokens has been permanently removed; do not re-add it. Login testIDs: auth-email-input / auth-password-input / auth-submit-btn. Recipe detail testIDs on /recipe/[id]: recipe-photo, edit-recipe, cook-mode.",
+  "rca_of_issue": "N/A — deployment fix verified. TTL index absent, compound (token,path) index present, token query works without Authorization header, wrong token yields 401, Bearer-only path also works, image_url round-trips through PATCH+GET on /api/recipes, and the frontend detail screen renders."
+}

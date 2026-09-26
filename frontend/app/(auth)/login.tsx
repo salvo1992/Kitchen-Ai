@@ -64,7 +64,7 @@ export default function Login() {
         <Image source="https://images.unsplash.com/photo-1556911220-bff31c812dba?w=800" style={{ width: "100%", height: "100%" }} contentFit="cover" />
         <LinearGradient colors={["transparent", "rgba(44,48,46,0.85)"]} style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0 }} />
         <View style={styles.heroOverlay}>
-          <Text style={styles.brand}>CucinaSmart</Text>
+          <Text style={styles.brand}>Smart Kitchen AI</Text>
           <Text style={styles.brandSub}>Il tuo assistente cucina intelligente</Text>
         </View>
       </View>

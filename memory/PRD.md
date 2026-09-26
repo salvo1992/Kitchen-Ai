@@ -1,4 +1,4 @@
-# CucinaSmart AI — Product Requirements
+# Smart Kitchen AI (ex CucinaSmart AI) — Product Requirements
 
 ## Vision
 Full kitchen command center: plan meals, cook with AI, run pantry/fridge/freezer with expiration triage, auto shopping list, import meal plans from photos with Gemini vision. Warm sage-green Italian UX.
@@ -69,3 +69,10 @@ Full kitchen command center: plan meals, cook with AI, run pantry/fridge/freezer
 ## Env
 Backend: MONGO_URL, DB_NAME, EMERGENT_LLM_KEY, JWT_SECRET, APP_NAME=cucinasmart-ai
 Frontend: EXPO_PUBLIC_BACKEND_URL
+
+## Deploy readiness (iteration_7-9)
+- App rinominata "Smart Kitchen AI" (slug smart-kitchen-ai, scheme smartkitchenai, bundle/package com.smartkitchenai.app)
+- `DELETE /api/auth/account` + pulsante "Elimina account e dati" in Profilo (requisito App Store)
+- httpx in requirements.txt; JWT_SECRET rimosso (inutilizzato); URL auth Emergent via env `EMERGENT_AUTH_SESSION_URL`
+- Rimosso indice TTL su file_tokens (scadenza controllata a runtime); .env sanati; permessi Android POST_NOTIFICATIONS/VIBRATE
+- deployment_agent: PASS
