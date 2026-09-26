@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/src/auth";
 import { ReminderCard } from "@/src/components/ReminderCard";
+import { resetOnboarding } from "@/src/storage-keys";
 import { makeStyles, useTheme, spacing, radius } from "@/src/theme";
 
 const useStyles = makeStyles((c) => ({
@@ -64,6 +65,7 @@ export default function Settings() {
         <Pressable style={styles.row} onPress={() => router.push("/calendar")}><Ionicons name="calendar-outline" size={22} color={colors.brandPrimary} /><Text style={styles.rowTxt}>Calendario pasti</Text><Ionicons name="chevron-forward" size={18} color={colors.muted} /></Pressable>
         <Pressable style={styles.row} onPress={() => router.push("/import-photo")}><Ionicons name="camera-outline" size={22} color={colors.brandPrimary} /><Text style={styles.rowTxt}>Importa piano da foto</Text><Ionicons name="chevron-forward" size={18} color={colors.muted} /></Pressable>
         <Pressable style={styles.row} onPress={() => router.push("/what-can-i-cook")}><Ionicons name="restaurant-outline" size={22} color={colors.brandPrimary} /><Text style={styles.rowTxt}>Cosa cucino?</Text><Ionicons name="chevron-forward" size={18} color={colors.muted} /></Pressable>
+        <Pressable testID="settings-tour" style={styles.row} onPress={async () => { await resetOnboarding(); router.replace("/onboarding"); }}><Ionicons name="help-buoy-outline" size={22} color={colors.brandPrimary} /><Text style={styles.rowTxt}>Rivedi il tour di benvenuto</Text><Ionicons name="chevron-forward" size={18} color={colors.muted} /></Pressable>
         <Pressable testID="logout" style={styles.logout} onPress={signOut}>
           <Ionicons name="log-out-outline" size={20} color={colors.onError} />
           <Text style={styles.logoutTxt}>Esci</Text>

@@ -138,7 +138,7 @@ export default function Ricette() {
             <LinearGradient colors={["transparent", "rgba(0,0,0,0.8)"]} style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0 }} />
             <View style={styles.cardOverlay}>
               <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
-              <Text style={styles.cardMeta}>⏱ {item.time_min || 30}m · 👥 {item.servings || 2}</Text>
+              <Text style={styles.cardMeta}>⏱ {item.time_min || 30}m · 👥 {item.servings || 2}{item.rating ? ` · ★ ${item.rating}` : ""}</Text>
             </View>
             {(item.ingredients || []).length > 0 && (
               <View style={[styles.badge, { backgroundColor: item.cookable ? colors.brandPrimary : "rgba(255,255,255,0.9)" }]} testID={`badge-${item.id}`}>

@@ -76,3 +76,6 @@ Frontend: EXPO_PUBLIC_BACKEND_URL
 - httpx in requirements.txt; JWT_SECRET rimosso (inutilizzato); URL auth Emergent via env `EMERGENT_AUTH_SESSION_URL`
 - Rimosso indice TTL su file_tokens (scadenza controllata a runtime); .env sanati; permessi Android POST_NOTIFICATIONS/VIBRATE
 - deployment_agent: PASS
+
+## Deploy fix (iteration_10)
+- Aggiunti `GET /health` e `GET /` a livello root (probe K8s/nginx senza /api); index/storage init in background task allo startup così la porta 8001 si apre subito

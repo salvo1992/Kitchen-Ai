@@ -3,12 +3,13 @@ import Ionicons from "@react-native-vector-icons/ionicons";
 import * as Clipboard from "expo-clipboard";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { api } from "@/src/api";
 import { usePullRefresh } from "@/src/use-pull-refresh";
+import { useAisleOrder, AISLES } from "@/src/aisle-order";
+import { categorize, aisleCategory } from "@/src/categories";
 import { makeStyles, useTheme, spacing, radius } from "@/src/theme";
-
-const AISLES = ["Frutta e verdura", "Carne e pesce", "Latticini", "Pane e cereali", "Dispensa", "Surgelati", "Bevande", "Altro"];
+import { useRouter, useFocusEffect } from "expo-router";
 
 const useStyles = makeStyles((c) => ({
   root: { flex: 1, backgroundColor: c.surface },
@@ -18,10 +19,14 @@ const useStyles = makeStyles((c) => ({
   actions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md, flexWrap: "wrap" },
   actionBtn: { flexDirection: "row", gap: 6, alignItems: "center", backgroundColor: c.surfaceSecondary, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 8 },
   actionTxt: { color: c.onSurface, fontSize: 13, fontWeight: "600" },
-  aisleHead: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: 4 },
-  aisleTitle: { color: c.brandPrimary, fontWeight: "700", fontSize: 13, letterSpacing: 0.5, textTransform: "uppercase" },
-  row: { flexDirection: "row", alignItems: "center", paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: c.divider },
-  check: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: c.borderStrong, alignItems: "center", justifyContent: "center", marginRight: spacing.md },
+  aisleHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: 6 },
+  aisleBadge: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
+  aisleTitle: { fontWeight: "800", fontSize: 13, letterSpacing: 0.5, textTransform: "uppercase" },
+  aisleCount: { color: c.muted, fontSize: 12, marginLeft: "auto" },
+  row: { flexDirection: "row", alignItems: "center", paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
+  rowCard: { flex: 1, flexDirection: "row", alignItems: "center", padding: spacing.md, borderRadius: radius.md, gap: spacing.md },
+  catBadge: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  check: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: c.borderStrong, alignItems: "center", justifyContent: "center" },
   checkActive: { backgroundColor: c.brandPrimary, borderColor: c.brandPrimary },
   rowText: { color: c.onSurface, fontSize: 15, fontWeight: "600" },
   rowTextChecked: { color: c.muted, textDecorationLine: "line-through", fontWeight: "500" },
@@ -49,6 +54,9 @@ export default function Spesa() {
   const [qty, setQty] = useState("1");
   const [unit, setUnit] = useState("pz");
   const [aisle, setAisle] = useState(AISLES[0]);
+  const router = useRouter();
+  const { order: aisleOrder, reload: reloadOrder } = useAisleOrder();
+  useFocusEffect(useCallback(() => { reloadOrder(); }, [reloadOrder]));
 
   const listQ = useQuery({
     queryKey: ["shopping"],
@@ -85,22 +93,27 @@ export default function Spesa() {
 
   const flat = useMemo(() => {
     const arr: any[] = [];
-    for (const key of Object.keys(grouped)) {
-      arr.push({ _header: key, id: `h_${key}` });
+    const keys = Object.keys(grouped).sort((a, b) => {
+      const ia = aisleOrder.indexOf(a), ib = aisleOrder.indexOf(b);
+      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+    });
+    for (const key of keys) {
+      arr.push({ _header: key, id: `h_${key}`, _count: grouped[key].filter((i: any) => !i.checked).length });
       arr.push(...grouped[key]);
     }
     return arr;
-  }, [grouped]);
+  }, [grouped, aisleOrder]);
 
   const totalChecked = (listQ.data || []).filter((x: any) => x.checked).length;
   const [copied, setCopied] = useState(false);
 
   const buildText = () => {
     const lines: string[] = ["🛒 Lista della spesa – Smart Kitchen AI", ""];
-    for (const key of Object.keys(grouped)) {
+    const keys = Object.keys(grouped).sort((a, b) => aisleOrder.indexOf(a) - aisleOrder.indexOf(b));
+    for (const key of keys) {
       const open = grouped[key].filter((i: any) => !i.checked);
       if (open.length === 0) continue;
-      lines.push(`📍 ${key}`);
+      lines.push(`${aisleCategory(key).emoji} ${key}`);
       for (const i of open) lines.push(`☐ ${i.name} — ${i.unit === "q.b." ? "q.b." : `${i.qty} ${i.unit}`}`);
       lines.push("");
     }
@@ -152,6 +165,10 @@ export default function Spesa() {
                 <Text style={styles.actionTxt}>Rimuovi presi</Text>
               </Pressable>
             )}
+            <Pressable testID="aisle-order-btn" style={styles.actionBtn} onPress={() => router.push("/aisle-order")}>
+              <Ionicons name="swap-vertical" size={16} color={colors.brandSecondary} />
+              <Text style={styles.actionTxt}>Ordine corsie</Text>
+            </Pressable>
           </View>
         </View>
       </View>
@@ -163,20 +180,31 @@ export default function Spesa() {
         refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} />}
         renderItem={({ item }) => {
           if (item._header) {
-            return <View style={styles.aisleHead}><Text style={styles.aisleTitle}>{item._header}</Text></View>;
+            const hc = aisleCategory(item._header);
+            return (
+              <View style={styles.aisleHead}>
+                <View style={[styles.aisleBadge, { backgroundColor: hc.bg }]}><Text style={{ fontSize: 15 }}>{hc.emoji}</Text></View>
+                <Text style={[styles.aisleTitle, { color: hc.color }]}>{item._header}</Text>
+                <Text style={styles.aisleCount}>{item._count} da prendere</Text>
+              </View>
+            );
           }
+          const cat = categorize(item.name, item.aisle);
           return (
             <Pressable testID={`shop-row-${item.id}`} style={styles.row} onPress={() => toggle.mutate(item)}>
-              <View style={[styles.check, item.checked && styles.checkActive]}>
-                {item.checked && <Ionicons name="checkmark" size={16} color={colors.onBrandPrimary} />}
+              <View style={[styles.rowCard, { backgroundColor: item.checked ? colors.surfaceSecondary : cat.bg }]}>
+                <View style={[styles.check, item.checked && styles.checkActive, !item.checked && { borderColor: cat.color }]}>
+                  {item.checked && <Ionicons name="checkmark" size={16} color={colors.onBrandPrimary} />}
+                </View>
+                <View style={[styles.catBadge, { backgroundColor: colors.surface, opacity: item.checked ? 0.5 : 1 }]}><Text style={{ fontSize: 20 }}>{cat.emoji}</Text></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.rowText, item.checked && styles.rowTextChecked]}>{item.name}</Text>
+                  <Text style={styles.rowMeta}>{item.unit === "q.b." ? "q.b." : `${item.qty} ${item.unit}`} · {cat.label}{item.note ? `  ·  ${item.note}` : ""}</Text>
+                </View>
+                <Pressable onPress={() => del.mutate(item.id)} style={{ padding: spacing.sm }}>
+                  <Ionicons name="close" size={18} color={colors.muted} />
+                </Pressable>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.rowText, item.checked && styles.rowTextChecked]}>{item.name}</Text>
-                <Text style={styles.rowMeta}>{item.unit === "q.b." ? "q.b." : `${item.qty} ${item.unit}`}{item.note ? `  ·  ${item.note}` : ""}</Text>
-              </View>
-              <Pressable onPress={() => del.mutate(item.id)} style={{ padding: spacing.sm }}>
-                <Ionicons name="close" size={18} color={colors.muted} />
-              </Pressable>
             </Pressable>
           );
         }}
@@ -209,7 +237,8 @@ export default function Spesa() {
                 keyExtractor={(x) => x}
                 contentContainerStyle={{ gap: spacing.sm }}
                 renderItem={({ item }) => (
-                  <Pressable testID={`aisle-${item}`} onPress={() => setAisle(item)} style={[styles.aisleChip, aisle === item && styles.aisleChipActive]}>
+                  <Pressable testID={`aisle-${item}`} onPress={() => setAisle(item)} style={[styles.aisleChip, { flexDirection: "row", gap: 4 }, aisle === item && styles.aisleChipActive]}>
+                    <Text style={{ fontSize: 13 }}>{aisleCategory(item).emoji}</Text>
                     <Text style={styles.aisleChipTxt}>{item}</Text>
                   </Pressable>
                 )}

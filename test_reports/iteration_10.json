@@ -1,0 +1,34 @@
+{
+  "summary": "Backend-only verification of the K8s/nginx health-probe fixes. All 12 pytest tests PASS in ~5s. Root-level GET /health returns 200 {status:'ok'} on localhost:8001 (which is where the K8s probe calls). Root-level GET / returns 200 {app:'Smart Kitchen AI', ok:true}. GET /api/ still returns the same body (unchanged). After `sudo supervisorctl restart backend`, /health became 200 in ~0.66s (well under the 3s target), confirming the startup no longer waits on DB index creation / storage init (they now run in a background asyncio task). No new traceback in backend.err.log since the last uvicorn boot. Regression smoke passed: signin with chef@cucina.ai works; /api/recipes, /api/pantry, /api/shopping, /api/household return 200; unique email index still enforced (duplicate signup -> 400); household invite_code created (6 chars) and lookup path works. NOTE: In this preview environment the external ingress routes non-/api paths to the Expo frontend (returns HTML on https://<preview>/health), so external-URL /health cannot be used to validate the FastAPI probe; the deployment probe uses cluster-internal http://<pod>:8001/health, which is what the tests assert.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter10_health_probes.py",
+    "/app/test_reports/pytest/pytest_iter10.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py: `app.add_middleware(CORSMiddleware, ...)` is registered AFTER `app.include_router(api_router)` and after the root-level /health and / handlers. In Starlette, middleware added after routes still applies globally, so functionally OK, but stylistically the middleware setup belongs before routes for clarity.",
+    "server.py is 1188 lines — well over the 700-line guideline. Consider splitting into modules (auth, recipes, pantry, shopping, meals, ai, household, storage) for maintainability.",
+    "Legacy `@app.on_event('startup')` / 'shutdown' are deprecated in FastAPI; migrate to `lifespan` context manager. Non-blocking, but will emit a DeprecationWarning on newer FastAPI versions.",
+    "`_startup_tasks()` swallows index-creation exceptions with a warning log; that's fine for boot resilience, but the previous bcrypt-related traceback in backend.err.log (older boots) suggests a passlib+bcrypt version drift — the current boot no longer shows it, so nothing to fix now."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter10_health_probes.py (new)",
+    "/app/test_reports/pytest/pytest_iter10.xml (new)"
+  ],
+  "success_rate": {"backend": "100% (12/12)", "frontend": "N/A (backend-only run)"},
+  "seed_data_creation": "Idempotent: signup of chef@cucina.ai returns 400 if it already exists (which it does), then signin is used. One ephemeral TEST_iter10_<uuid> user was created for the household unique-code test and deleted via DELETE /api/auth/account in the same test.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Run with `EXPO_PUBLIC_BACKEND_URL=<preview-url> pytest backend/tests/test_iter10_health_probes.py -n 0` — the restart test must run serially (it restarts uvicorn, which breaks any concurrent worker). pytest.ini forces `-n 2 --dist loadscope` by default, so pass `-n 0` to override. External https://<preview>/health returns HTML from Expo (ingress routing), which is expected in the preview cluster; production uses a different ingress that hits FastAPI directly, so validation is against http://localhost:8001/health.",
+  "rca_of_issue": "N/A — no bugs found. The PR under test correctly addresses the RCA described in the problem statement: (a) K8s/nginx probe hit /health (no /api prefix) and got 404 → fixed by adding a root-level @app.get('/health') handler outside the api_router; (b) startup was blocked on `db.*.create_index(...)` awaits and `init_storage()` HTTP calls before uvicorn began serving, so the probe timed out → fixed by moving those into `asyncio.create_task(_startup_tasks())` inside on_startup, so the port binds immediately and index/storage init happen in the background. Verified empirically: /health responds ~0.66s after `supervisorctl restart backend`."
+}

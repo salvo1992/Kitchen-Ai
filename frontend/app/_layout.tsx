@@ -11,6 +11,7 @@ import { ErrorBoundary } from "@/src/components/error-boundary";
 import { queryClient } from "@/src/query-client";
 import { AuthProvider, useAuth } from "@/src/auth";
 import { useTheme } from "@/src/theme";
+import { loadOnboarding, useOnboardingDone } from "@/src/storage-keys";
 
 LogBox.ignoreAllLogs(true);
 
@@ -27,15 +28,20 @@ function Gate() {
   const segments = useSegments();
   const router = useRouter();
   const { colors } = useTheme();
+  const onboarded = useOnboardingDone();
+
+  useEffect(() => { loadOnboarding(); }, []);
 
   useEffect(() => {
-    if (loading) return;
+    if (loading || onboarded === null) return;
     const inAuth = segments[0] === "(auth)";
+    const inOnboarding = segments[0] === "onboarding";
     if (!user && !inAuth) router.replace("/(auth)/login");
-    else if (user && inAuth) router.replace("/(tabs)/oggi");
-  }, [user, loading, segments, router]);
+    else if (user && !onboarded && !inOnboarding) router.replace("/onboarding");
+    else if (user && inAuth) router.replace(onboarded ? "/(tabs)/oggi" : "/onboarding");
+  }, [user, loading, segments, router, onboarded]);
 
-  if (loading) {
+  if (loading || onboarded === null) {
     return (
       <View style={{ flex: 1, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" }}>
         <ActivityIndicator color={colors.brandPrimary} size="large" />

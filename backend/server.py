@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from passlib.hash import bcrypt
-import os, uuid, logging, httpx, requests, json, base64, re
+import os, uuid, logging, httpx, requests, json, base64, re, asyncio
 from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional, Dict, Any
@@ -1135,12 +1135,26 @@ async def root():
 
 
 app.include_router(api_router)
+
+# Root-level probes used by the deployment platform (nginx → uvicorn, no /api prefix)
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+@app.get("/")
+async def root_health():
+    return {"app": "Smart Kitchen AI", "ok": True}
 app.add_middleware(CORSMiddleware, allow_credentials=True, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 @app.on_event("startup")
 async def on_startup():
+    # Run DB index creation + storage init in the background so the port binds immediately
+    # (health probes must not wait on Atlas / integration latency).
+    asyncio.create_task(_startup_tasks())
+
+async def _startup_tasks():
     try:
         await db.users.create_index("email", unique=True)
         await db.users.create_index("user_id", unique=True)

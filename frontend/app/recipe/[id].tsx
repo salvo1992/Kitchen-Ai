@@ -7,6 +7,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import { api } from "@/src/api";
+import { categorize } from "@/src/categories";
+import { RecipeNotes } from "@/src/components/RecipeNotes";
 import { resolveUrl, pickImage, uploadImage, chooseImageSource } from "@/src/media";
 import { makeStyles, useTheme, spacing, radius } from "@/src/theme";
 
@@ -168,13 +170,16 @@ export default function RecipeDetail() {
                 </View>
               )}
               {shopM.isError && <Text style={{ color: colors.error, marginBottom: spacing.sm }}>Errore, riprova</Text>}
-              {r.ingredients.map((i: any, idx: number) => (
-                <View key={idx} style={styles.ingRow}>
-                  <Ionicons name="leaf" size={14} color={colors.brandPrimary} />
-                  <Text style={{ color: colors.onSurface, flex: 1 }}>{i.name}</Text>
-                  <Text style={{ color: colors.muted }} testID={`ing-qty-${idx}`}>{i.unit === "q.b." || typeof i.qty !== "number" ? (i.unit === "q.b." ? "q.b." : `${i.qty} ${i.unit}`) : `${fmtQty(i.qty * factor)} ${i.unit}`}</Text>
-                </View>
-              ))}
+              {r.ingredients.map((i: any, idx: number) => {
+                const cat = categorize(i.name);
+                return (
+                  <View key={idx} style={styles.ingRow}>
+                    <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: cat.bg, alignItems: "center", justifyContent: "center" }}><Text style={{ fontSize: 15 }}>{cat.emoji}</Text></View>
+                    <Text style={{ color: colors.onSurface, flex: 1 }}>{i.name}</Text>
+                    <Text style={{ color: colors.muted }} testID={`ing-qty-${idx}`}>{i.unit === "q.b." || typeof i.qty !== "number" ? (i.unit === "q.b." ? "q.b." : `${i.qty} ${i.unit}`) : `${fmtQty(i.qty * factor)} ${i.unit}`}</Text>
+                  </View>
+                );
+              })}
             </View>
           )}
           {(r.steps || []).length > 0 && (
@@ -211,6 +216,7 @@ export default function RecipeDetail() {
             </View>
           )}
           {cookedM.isError && <Text style={{ color: colors.error, marginTop: spacing.sm }}>Errore, riprova</Text>}
+          <RecipeNotes recipeId={r.id} rating={r.rating} notes={r.notes} highlight={!!cookedM.data} />
         </View>
       </ScrollView>
     </View>

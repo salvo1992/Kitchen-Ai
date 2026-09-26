@@ -9,6 +9,7 @@ import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { syncExpiryReminder } from "@/src/reminders";
+import { CATEGORIES } from "@/src/categories";
 import { usePullRefresh } from "@/src/use-pull-refresh";
 import { makeStyles, useTheme, spacing, radius } from "@/src/theme";
 
@@ -240,27 +241,27 @@ export default function Oggi() {
               <Text style={styles.quickSub}>7 giorni con Chef AI</Text>
             </Pressable>
             <Pressable testID="quick-scan" style={styles.quick} onPress={() => router.push("/scan-barcode")}>
-              <View style={styles.quickIcon}><Ionicons name="barcode" size={20} color={colors.brandPrimary} /></View>
+              <View style={[styles.quickIcon, { backgroundColor: CATEGORIES.pesce.bg }]}><Ionicons name="barcode" size={20} color={CATEGORIES.pesce.color} /></View>
               <Text style={styles.quickTitle}>Scansiona</Text>
               <Text style={styles.quickSub}>Aggiungi in dispensa</Text>
             </Pressable>
             <Pressable testID="quick-cook" style={styles.quick} onPress={() => router.push("/what-can-i-cook")}>
-              <View style={styles.quickIcon}><Ionicons name="restaurant" size={20} color={colors.brandPrimary} /></View>
+              <View style={[styles.quickIcon, { backgroundColor: CATEGORIES.verdura.bg }]}><Ionicons name="restaurant" size={20} color={CATEGORIES.verdura.color} /></View>
               <Text style={styles.quickTitle}>Cosa cucino?</Text>
               <Text style={styles.quickSub}>Idee dalla dispensa</Text>
             </Pressable>
             <Pressable testID="quick-list" style={styles.quick} onPress={() => router.push("/(tabs)/spesa")}>
-              <View style={styles.quickIcon}><Ionicons name="cart" size={20} color={colors.brandPrimary} /></View>
+              <View style={[styles.quickIcon, { backgroundColor: CATEGORIES.frutta.bg }]}><Ionicons name="cart" size={20} color={CATEGORIES.frutta.color} /></View>
               <Text style={styles.quickTitle}>Lista spesa</Text>
               <Text style={styles.quickSub}>{(shopQ.data || []).filter((x: any) => !x.checked).length} da comprare</Text>
             </Pressable>
             <Pressable testID="quick-import" style={styles.quick} onPress={() => router.push("/import-photo")}>
-              <View style={styles.quickIcon}><Ionicons name="camera" size={20} color={colors.brandPrimary} /></View>
+              <View style={[styles.quickIcon, { backgroundColor: CATEGORIES.dolci.bg }]}><Ionicons name="camera" size={20} color={CATEGORIES.dolci.color} /></View>
               <Text style={styles.quickTitle}>Importa piano</Text>
               <Text style={styles.quickSub}>Da foto con AI</Text>
             </Pressable>
             <Pressable testID="quick-recipe" style={styles.quick} onPress={() => router.push("/add-recipe")}>
-              <View style={styles.quickIcon}><Ionicons name="book" size={20} color={colors.brandPrimary} /></View>
+              <View style={[styles.quickIcon, { backgroundColor: CATEGORIES.formaggi.bg }]}><Ionicons name="book" size={20} color={CATEGORIES.formaggi.color} /></View>
               <Text style={styles.quickTitle}>Nuova ricetta</Text>
               <Text style={styles.quickSub}>Salva nel ricettario</Text>
             </Pressable>

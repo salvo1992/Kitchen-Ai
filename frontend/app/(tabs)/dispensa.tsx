@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo } from "react";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
+import { categorize } from "@/src/categories";
 import { usePullRefresh } from "@/src/use-pull-refresh";
 import { makeStyles, useTheme, spacing, radius } from "@/src/theme";
 
@@ -98,14 +99,15 @@ export default function Dispensa() {
     const d = item._d;
     const urgent = d !== null && d <= 3;
     const expired = d !== null && d < 0;
+    const cat = categorize(item.name);
     return (
       <View key={item.id} style={styles.row} testID={`pantry-row-${item.id}`}>
-        <View style={[styles.rowIcon, { backgroundColor: urgent ? colors.brandTertiary : colors.surfaceSecondary }]}>
-          <Ionicons name={LOCATIONS.find((l) => l.key === item.location)?.icon as any} size={20} color={urgent ? colors.brandSecondary : colors.brandPrimary} />
+        <View style={[styles.rowIcon, { backgroundColor: cat.bg }]}>
+          <Text style={{ fontSize: 20 }}>{cat.emoji}</Text>
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.rowName}>{item.name}</Text>
-          <Text style={styles.rowMeta}>{item.qty} {item.unit}{item.price ? `  ·  ${Number(item.price).toFixed(2).replace(".", ",")} €` : ""}{item.expires_at ? `  ·  scade ${new Date(item.expires_at).toLocaleDateString("it-IT")}` : ""}</Text>
+          <Text style={styles.rowMeta}>{item.qty} {item.unit} · <Text style={{ color: cat.color, fontWeight: "600" }}>{cat.label}</Text>{item.price ? `  ·  ${Number(item.price).toFixed(2).replace(".", ",")} €` : ""}{item.expires_at ? `  ·  scade ${new Date(item.expires_at).toLocaleDateString("it-IT")}` : ""}</Text>
         </View>
         {d !== null && (
           <View style={[styles.badge, { backgroundColor: expired ? colors.error : urgent ? colors.warning : colors.brandTertiary }]}>
