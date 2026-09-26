@@ -82,7 +82,7 @@ export default function ScanBarcode() {
   const saveM = useMutation({
     mutationFn: (body: any) => api("/api/pantry", { method: "POST", body: JSON.stringify(body) }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["pantry"] }); qc.invalidateQueries({ queryKey: ["pantry-all"] });
+      qc.invalidateQueries({ queryKey: ["pantry"] }); qc.invalidateQueries({ queryKey: ["pantry-all"] }); qc.invalidateQueries({ queryKey: ["pantry-expiring"] });
       if (router.canGoBack()) router.back(); else router.replace("/(tabs)/dispensa");
     },
   });

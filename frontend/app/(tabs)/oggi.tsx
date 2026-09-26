@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { View, Text, ScrollView, Pressable, RefreshControl } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -8,6 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
+import { syncExpiryReminder } from "@/src/reminders";
 import { usePullRefresh } from "@/src/use-pull-refresh";
 import { makeStyles, useTheme, spacing, radius } from "@/src/theme";
 
@@ -71,21 +72,21 @@ export default function Oggi() {
       return res.items;
     },
   });
-  const pantryQ = useQuery({
-    queryKey: ["pantry-all"],
-    queryFn: async () => (await api<{ items: any[] }>("/api/pantry")).items,
+  const expiringQ = useQuery({
+    queryKey: ["pantry-expiring"],
+    queryFn: async () => (await api<{ items: any[] }>("/api/pantry/expiring?days=3")).items,
   });
   const shopQ = useQuery({
     queryKey: ["shopping"],
     queryFn: async () => (await api<{ items: any[] }>("/api/shopping")).items,
   });
-  const pull = usePullRefresh(() => Promise.all([mealsQ.refetch(), pantryQ.refetch(), shopQ.refetch()]));
+  const pull = usePullRefresh(() => Promise.all([mealsQ.refetch(), expiringQ.refetch(), shopQ.refetch()]));
 
-  const expiringCount = useMemo(() => {
-    const items = pantryQ.data || [];
-    const soon = new Date(); soon.setDate(soon.getDate() + 3);
-    return items.filter((i) => i.expires_at && new Date(i.expires_at) <= soon).length;
-  }, [pantryQ.data]);
+  const expiring = useMemo(() => expiringQ.data || [], [expiringQ.data]);
+  const expiringCount = expiring.length;
+  useEffect(() => {
+    if (expiringQ.data) syncExpiryReminder(expiringQ.data).catch(() => {});
+  }, [expiringQ.data]);
 
   const slotsData = ["colazione", "pranzo", "cena"].map((slot) => {
     const m = (mealsQ.data || []).find((x: any) => x.slot === slot);
@@ -110,13 +111,17 @@ export default function Oggi() {
           </Pressable>
         </View>
 
-        <Pressable testID="kpi-expiring" style={styles.kpi} onPress={() => router.push("/(tabs)/dispensa")}>
-          <View style={styles.kpiIcon}>
-            <Ionicons name="time-outline" size={22} color={colors.brandSecondary} />
+        <Pressable testID="kpi-expiring" style={[styles.kpi, expiringCount > 0 && { backgroundColor: colors.brandTertiary, borderWidth: 1, borderColor: colors.brandSecondary }]} onPress={() => router.push("/(tabs)/dispensa")}>
+          <View style={[styles.kpiIcon, expiringCount > 0 && { backgroundColor: colors.brandSecondary }]}>
+            <Ionicons name={expiringCount > 0 ? "alert" : "time-outline"} size={22} color={expiringCount > 0 ? colors.onBrandSecondary : colors.brandSecondary} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.kpiTitle}>{expiringCount === 0 ? "Nessuna scadenza urgente" : `${expiringCount} in scadenza`}</Text>
-            <Text style={styles.kpiSub}>{expiringCount === 0 ? "La dispensa è in ordine" : "Tocca per vedere cosa consumare prima"}</Text>
+            <Text style={styles.kpiTitle}>{expiringCount === 0 ? "Nessuna scadenza urgente" : `${expiringCount} da usare entro 3 giorni`}</Text>
+            <Text style={styles.kpiSub} numberOfLines={2}>
+              {expiringCount === 0
+                ? "La dispensa è in ordine"
+                : expiring.slice(0, 3).map((i: any) => `${i.name}${i.days_left < 0 ? " (scaduto)" : i.days_left === 0 ? " (oggi)" : ` (${i.days_left}g)`}`).join(" · ") + (expiringCount > 3 ? ` +${expiringCount - 3}` : "")}
+            </Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors.muted} />
         </Pressable>

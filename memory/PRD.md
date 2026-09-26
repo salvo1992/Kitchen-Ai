@@ -38,7 +38,13 @@ Full kitchen command center: plan meals, cook with AI, run pantry/fridge/freezer
 - Backend: 32/32 test OK (iteration_1) + 8/8 nuove feature (iteration_3)
 - Frontend E2E: 11/11 flussi base (iteration_2) + 11/11 nuove feature (iteration_3)
 - Lint frontend: 0 warning
-- Backlog: notifiche push per scadenze (richiede build nativa)
+- Backlog: nessuno
+
+## Feature aggiunte (iteration_4)
+- Scala porzioni: stepper nel dettaglio ricetta, quantità ricalcolate client-side (`fmtQty`), q.b. invariato
+- Avvisi scadenze: `GET /api/pantry/expiring?days=3`; banner in Oggi con nomi; `src/reminders.ts` notifica locale giornaliera (expo-notifications, DAILY trigger) risincronizzata a ogni caricamento di Oggi; orario/toggle in Impostazioni (`ReminderCard`, AsyncStorage). Solo su telefono, non web
+- Foto ricette: `POST /api/upload-base64` → Object Storage, token 10 anni; `src/media.ts` (pickImage con permessi, uploadImage, resolveUrl); pulsante in dettaglio + area foto in add-recipe
+- Spesa da piano: `POST /api/meals/to-shopping {start,end}` unisce ingredienti dei pasti con ricetta (somma qty stessa unità), esclude dispensa/lista; pulsanti in Calendario e Piano AI
 
 ## Feature aggiunte (iteration_3)
 - Scanner barcode (`/scan-barcode`, expo-camera + Open Food Facts via `GET /api/products/barcode/{code}`); web = inserimento manuale

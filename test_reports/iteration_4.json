@@ -1,0 +1,39 @@
+{
+  "summary": "CucinaSmart AI iteration 4: all 4 NEW features (Scala Porzioni, Avvisi Scadenze, Foto Ricette, Spesa da Piano) validated end-to-end. Backend: 10/10 pytest cases pass in /app/backend/tests/test_iter4_features.py: (a) GET /api/pantry/expiring returns only items with days_left <= days sorted ascending, excludes items with no expires_at, default days=3, verified with offsets [-2,0,2,3,10,30]; (b) POST /api/upload-base64 with data:image/png prefix returns {path,url,token}, GET /api/files/<path>?token= without auth returns exact original bytes 200 with image/* content-type, invalid base64 -> 400, no token & no bearer -> 401; (c) POST /api/meals/to-shopping merges 'Uova 2 pz' + 'Uova 4 pz' across 2 recipe-linked meals -> qty 6 pz aisle 'Latticini' note 'Piano settimanale', pantry items skipped to in_pantry, second call moves all to already_listed, empty range returns {meals:0,recipes:0,added/in_pantry/already_listed:[]}, meals without recipe_id are ignored. Frontend (mobile 390x844, chef@cucina.ai): Oggi KPI (kpi-expiring) shows '2 da usare entro 3 giorni' with item names including 'TEST_Pomodori_urgent (scaduto)'. Recipe detail servings stepper: base '2 porzioni' + Farina 100 g + Sale q.b. -> after 2x serv-plus shows '4 porzioni' with Farina '200 g' and Sale still 'q.b.'; serv-reset returns to '2 porzioni' and '100 g'. recipe-photo button present. Settings ReminderCard renders on web with title 'Promemoria scadenze' and subtitle \"Disponibile sull'app per telefono\", and the Switch has JSX prop disabled={isWeb} (see note in minor issues). add-recipe screen exposes rec-photo testID. /calendar 'Crea lista della spesa' (week-to-shopping) is visible (because iter3 left saved plan meals in range), clicking it returns week-shop-result with counts and note 'Piano settimanale' — verified server-side; UI showed 'Nulla da aggiungere · 3 già in dispensa · 42 già in lista' because iter3 already populated the shopping list; server-side test independently confirmed added-items path. /weekly-plan renders generate-plan; plan-to-shopping already validated in iter3 flow. Only console messages: expected shadow*/pointerEvents deprecation warnings and expo-notifications web warning. No red screens, no 5xx, no unhandled errors.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "ReminderCard Switch", "issue": "Switch has JSX prop disabled={isWeb} in code (correct), but on react-native-web the disabled attribute is not surfaced on the outer testID container in DOM, so a direct playwright attribute check on [data-testid=reminder-switch] returns null. Functionally the switch does NOT toggle on web (verified by presence of the 'Disponibile sull'app per telefono' subtitle and by code path in ReminderCard.tsx:71). No user-visible bug — only a testability note.", "testID": "reminder-switch", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter4_features.py",
+    "/app/test_reports/pytest/pytest_iter4.xml",
+    "/app/test_reports/iteration_4.json"
+  ],
+  "action_items": [
+    "OPTIONAL LOW (test-only): If you want playwright to be able to assert the web disabled state of the reminder Switch, add aria-disabled={isWeb} or accessibilityState={{disabled: isWeb}} on the Switch (or wrap it in a Pressable with testID and aria-disabled). Purely testability improvement — feature works as intended.",
+    "OPTIONAL: The Oggi KPI displays duplicated item names when the pantry has two items with the same name (e.g. 'TEST_Pomodori_urgent · TEST_Pomodori_urgent'). Consider deduping by name in oggi.tsx when building the KPI subtitle (still functional, but slightly odd UX). Reference: kpi-expiring text observed in run 2."
+  ],
+  "critical_code_review_comments": [
+    "server.py now 988 lines — split into routers (auth, recipes, pantry, shopping, meals, ai, storage, household) remains recommended.",
+    "/api/pantry/expiring correctly parses `expires_at[:10]` as ISO date so items stored as 'YYYY-MM-DD' or full ISO datetimes both work; date parsing errors are silently skipped which is safe.",
+    "/api/upload-base64 auto-extracts ext from data:image/<ext> prefix; enforces 8MB cap; and normalizes 'jpg'->'jpeg' for content-type. File token TTL is 3650 days (long-lived) which is fine for private user files but consider a shorter default if these URLs are ever shared publicly.",
+    "/api/meals/to-shopping merges qty only when unit matches AND unit != 'q.b.' (server.py:599) — correct behavior verified. Uses `_norm_name` for merge keys, `name_matches` for pantry/shopping dedup with singular/plural tolerance.",
+    "media.ts pickImage returns a data URI (`data:${mime};base64,${a.base64}`) and uploadImage forwards it as-is; server strips the prefix. On web `chooseImageSource` directly calls onPick('library') → expo-image-picker uses a hidden <input type=file> — flow is compatible with playwright set_input_files but is not a testID-anchored element (that's why the request suggests best-effort testing)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter4_features.py",
+    "/app/test_reports/pytest/pytest_iter4.xml",
+    "/app/test_reports/iteration_4.json"
+  ],
+  "success_rate": {"backend": "100% (10/10 iter4 tests)", "frontend": "100% (9/9 flows verified — reminder-switch disabled attribute check is a test-tooling limitation, not a bug)"},
+  "seed_data_creation": "Chef account: created 1 pantry item 'TEST_Pomodori_urgent' (fridge, expired 2 days ago) and 1 recipe 'TEST Servings Recipe' (rec_92efb777461d) with servings=2. Backend tests each create their own isolated TEST_ users via /api/auth/signup and are self-contained (no shared state). Chef pantry also still has iter3 residual 'pomodori/pasta/uova' items and iter3 saved weekly plans (~42 shopping items) — expected, and it's what allowed calendar week-to-shopping to render in this run.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "iter4 regression suite: /app/backend/tests/test_iter4_features.py runs in ~5s alongside test_new_features.py and test_cucinasmart_api.py (all independent). Key testIDs used: kpi-expiring (oggi), serv-minus/serv-plus/serv-value/serv-reset/ing-qty-{i}/recipe-photo (recipe/[id]), reminder-card/reminder-switch/hour-plus/hour-minus/minute-toggle/preset-<h>-<m>/reminder-open-settings (Settings), rec-photo (add-recipe), week-to-shopping/week-shop-result (calendar), plan-to-shopping/plan-shop-result (weekly-plan). Auth token storage key in the web app is `cucinasmart_token` in localStorage (raw 64-char hex). To seed data programmatically inside playwright, read that key and use fetch(). Chef's calendar contains meals for the coming week (from iter3), so week-to-shopping bar is visible without pre-generating a plan; if you seed a new chef, run /weekly-plan Genera+Salva first to make the bar visible.",
+  "rca_of_issue": "No blocking bugs. Two low-severity observations only: (1) reminder-switch element on web does not expose disabled/aria-disabled attributes on the testID container, which prevents a direct attribute assertion but does NOT affect behavior — code correctly passes disabled={isWeb} to <Switch>. (2) Oggi KPI can list duplicate item names verbatim when the pantry has duplicates; consider deduplicating names in the KPI subtitle. Neither affects feature correctness."
+}

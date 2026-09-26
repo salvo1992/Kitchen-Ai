@@ -3,6 +3,7 @@ import Ionicons from "@react-native-vector-icons/ionicons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/src/auth";
+import { ReminderCard } from "@/src/components/ReminderCard";
 import { makeStyles, useTheme, spacing, radius } from "@/src/theme";
 
 const useStyles = makeStyles((c) => ({
@@ -38,6 +39,7 @@ export default function Settings() {
           <Text style={styles.name}>{user?.name || "Chef"}</Text>
           <Text style={styles.email}>{user?.email}</Text>
         </View>
+        <ReminderCard />
         <Pressable testID="settings-family" style={styles.row} onPress={() => router.push("/family")}><Ionicons name="people-outline" size={22} color={colors.brandPrimary} /><Text style={styles.rowTxt}>Famiglia</Text><Text style={{ color: colors.muted, fontSize: 12 }}>{user?.household_id ? "Attiva" : "Condividi la cucina"}</Text><Ionicons name="chevron-forward" size={18} color={colors.muted} /></Pressable>
         <Pressable testID="settings-plan" style={styles.row} onPress={() => router.push("/weekly-plan")}><Ionicons name="sparkles-outline" size={22} color={colors.brandPrimary} /><Text style={styles.rowTxt}>Piano settimanale AI</Text><Ionicons name="chevron-forward" size={18} color={colors.muted} /></Pressable>
         <Pressable style={styles.row} onPress={() => router.push("/calendar")}><Ionicons name="calendar-outline" size={22} color={colors.brandPrimary} /><Text style={styles.rowTxt}>Calendario pasti</Text><Ionicons name="chevron-forward" size={18} color={colors.muted} /></Pressable>

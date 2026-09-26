@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { useState, useMemo } from "react";
 import { api } from "@/src/api";
+import { resolveUrl } from "@/src/media";
 import { usePullRefresh } from "@/src/use-pull-refresh";
 import { makeStyles, useTheme, spacing, radius } from "@/src/theme";
 
@@ -90,7 +91,7 @@ export default function Ricette() {
         refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} />}
         renderItem={({ item }) => (
           <Pressable testID={`recipe-${item.id}`} style={styles.card} onPress={() => router.push({ pathname: "/recipe/[id]", params: { id: item.id } })}>
-            <Image source={item.image_url || FALLBACK_IMG} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+            <Image source={resolveUrl(item.image_url) || FALLBACK_IMG} style={{ width: "100%", height: "100%" }} contentFit="cover" />
             <LinearGradient colors={["transparent", "rgba(0,0,0,0.8)"]} style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0 }} />
             <View style={styles.cardOverlay}>
               <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>

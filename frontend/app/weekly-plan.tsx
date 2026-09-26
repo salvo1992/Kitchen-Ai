@@ -58,12 +58,17 @@ export default function WeeklyPlan() {
   });
 
   const saveM = useMutation({
-    mutationFn: () => api<{ recipes_created: number; meals_created: number }>("/api/ai/weekly-plan/save", { method: "POST", body: JSON.stringify({ days: plan!.days, replace: true }) }),
+    mutationFn: () => api<{ recipes_created: number; meals_created: number; start_date: string; end_date: string }>("/api/ai/weekly-plan/save", { method: "POST", body: JSON.stringify({ days: plan!.days, replace: true }) }),
     onSuccess: (r) => {
       setSaved(r);
       qc.invalidateQueries({ queryKey: ["meals"] });
       qc.invalidateQueries({ queryKey: ["recipes"] });
     },
+  });
+
+  const shopM = useMutation({
+    mutationFn: () => api<{ added: any[]; in_pantry: string[]; already_listed: string[] }>("/api/meals/to-shopping", { method: "POST", body: JSON.stringify({ start: plan!.start_date, end: plan!.end_date }) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["shopping"] }),
   });
 
   const confirmSave = () => {
@@ -131,7 +136,18 @@ export default function WeeklyPlan() {
           {saved ? (
             <>
               <Text style={[styles.note, { color: colors.brandPrimary, fontWeight: "700" }]} testID="plan-saved">Salvato: {saved.meals_created} pasti nel calendario, {saved.recipes_created} nuove ricette</Text>
-              <Pressable testID="go-calendar" onPress={() => router.replace("/calendar")} style={styles.btn}><Ionicons name="calendar-outline" size={18} color={colors.onBrandPrimary} /><Text style={styles.btnTxt}>Apri il calendario</Text></Pressable>
+              {shopM.data ? (
+                <Pressable testID="plan-shop-result" onPress={() => router.replace("/(tabs)/spesa")} style={[styles.btn, { marginTop: 0 }]}>
+                  <Ionicons name="cart" size={18} color={colors.onBrandPrimary} />
+                  <Text style={styles.btnTxt}>{shopM.data.added.length} articoli in lista · Vai alla spesa</Text>
+                </Pressable>
+              ) : (
+                <Pressable testID="plan-to-shopping" onPress={() => shopM.mutate()} style={[styles.btn, styles.btnAccent, { marginTop: 0 }]} disabled={shopM.isPending}>
+                  {shopM.isPending ? <ActivityIndicator color={colors.onBrandSecondary} /> : <><Ionicons name="cart-outline" size={18} color={colors.onBrandSecondary} /><Text style={[styles.btnTxt, { color: colors.onBrandSecondary }]}>Crea lista della spesa</Text></>}
+                </Pressable>
+              )}
+              {shopM.isError && <Text style={styles.errorTxt}>Errore nella lista, riprova</Text>}
+              <Pressable testID="go-calendar" onPress={() => router.replace("/calendar")} style={[styles.btn, { marginTop: 0, backgroundColor: colors.brandTertiary }]}><Ionicons name="calendar-outline" size={18} color={colors.brandPrimary} /><Text style={[styles.btnTxt, { color: colors.brandPrimary }]}>Apri il calendario</Text></Pressable>
             </>
           ) : (
             <>

@@ -5,7 +5,9 @@ import Ionicons from "@react-native-vector-icons/ionicons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useState } from "react";
 import { api } from "@/src/api";
+import { resolveUrl, pickImage, uploadImage, chooseImageSource } from "@/src/media";
 import { makeStyles, useTheme, spacing, radius } from "@/src/theme";
 
 const useStyles = makeStyles((c) => ({
@@ -30,7 +32,17 @@ const useStyles = makeStyles((c) => ({
   shopBtnTxt: { color: c.brandPrimary, fontWeight: "700", fontSize: 13 },
   resultBox: { backgroundColor: c.brandTertiary, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm, gap: 4 },
   resultLine: { color: c.onBrandTertiary, fontSize: 13 },
+  servings: { flexDirection: "row", alignItems: "center", backgroundColor: c.surfaceSecondary, borderRadius: radius.pill, padding: 4, gap: spacing.sm },
+  servBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: c.surface, alignItems: "center", justifyContent: "center" },
+  servTxt: { color: c.onSurface, fontWeight: "700", minWidth: 70, textAlign: "center" },
+  photoBtn: { position: "absolute", right: spacing.lg, bottom: 44, flexDirection: "row", gap: 6, alignItems: "center", backgroundColor: "rgba(255,255,255,0.9)", borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 8 },
 }));
+
+function fmtQty(q: number) {
+  if (!Number.isFinite(q)) return "";
+  const r = q >= 10 ? Math.round(q) : Math.round(q * 4) / 4;
+  return String(r).replace(".", ",");
+}
 
 const FALLBACK = "https://images.pexels.com/photos/1640775/pexels-photo-1640775.jpeg?w=800";
 
@@ -62,15 +74,33 @@ export default function RecipeDetail() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["shopping"] }),
   });
 
+  const [servings, setServings] = useState<number | null>(null);
+  const photoM = useMutation({
+    mutationFn: async (source: "camera" | "library") => {
+      const img = await pickImage(source);
+      if (!img) return null;
+      const url = await uploadImage(img.base64);
+      return api(`/api/recipes/${id}`, { method: "PATCH", body: JSON.stringify({ image_url: url }) });
+    },
+    onSuccess: (res) => { if (res) { qc.invalidateQueries({ queryKey: ["recipe", id] }); qc.invalidateQueries({ queryKey: ["recipes"] }); } },
+  });
+
   if (q.isLoading || !q.data) return <View style={styles.root}><ActivityIndicator style={{ marginTop: 80 }} color={colors.brandPrimary} /></View>;
   const r = q.data;
+  const baseServ = Number(r.servings) || 2;
+  const curServ = servings ?? baseServ;
+  const factor = curServ / baseServ;
 
   return (
     <View style={styles.root}>
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
         <View style={styles.hero}>
-          <Image source={r.image_url || FALLBACK} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+          <Image source={resolveUrl(r.image_url) || FALLBACK} style={{ width: "100%", height: "100%" }} contentFit="cover" />
           <LinearGradient colors={["rgba(0,0,0,0.4)", "transparent"]} style={{ position: "absolute", left: 0, right: 0, top: 0, height: 100 }} />
+          <Pressable testID="recipe-photo" style={styles.photoBtn} onPress={() => chooseImageSource((s) => photoM.mutate(s))} disabled={photoM.isPending}>
+            {photoM.isPending ? <ActivityIndicator size="small" color={colors.brandPrimary} /> : <Ionicons name="camera" size={16} color={colors.brandPrimary} />}
+            <Text style={{ color: colors.brandPrimary, fontWeight: "700", fontSize: 12 }}>{photoM.isPending ? "Carico…" : r.image_url ? "Cambia foto" : "Aggiungi foto"}</Text>
+          </Pressable>
           <View style={[styles.headerBtns, { top: insets.top }]}>
             <Pressable style={styles.circleBtn} onPress={() => router.back()}><Ionicons name="arrow-back" size={20} color={colors.onSurface} /></Pressable>
             <View style={{ flexDirection: "row", gap: 8 }}>
@@ -85,10 +115,19 @@ export default function RecipeDetail() {
         <View style={styles.body}>
           <Text style={styles.title}>{r.title}</Text>
           {!!r.description && <Text style={{ color: colors.muted, lineHeight: 21 }}>{r.description}</Text>}
-          <View style={styles.meta}>
+          <View style={[styles.meta, { alignItems: "center", justifyContent: "space-between" }]}>
             <View style={styles.metaItem}><Ionicons name="time-outline" size={16} color={colors.brandPrimary} /><Text style={styles.metaTxt}>{r.time_min || 30} min</Text></View>
-            <View style={styles.metaItem}><Ionicons name="people-outline" size={16} color={colors.brandPrimary} /><Text style={styles.metaTxt}>{r.servings || 2} porzioni</Text></View>
+            <View style={styles.servings} testID="servings-stepper">
+              <Pressable testID="serv-minus" style={styles.servBtn} onPress={() => setServings(Math.max(1, curServ - 1))}><Ionicons name="remove" size={18} color={colors.onSurface} /></Pressable>
+              <Text style={styles.servTxt} testID="serv-value">{curServ} {curServ === 1 ? "porzione" : "porzioni"}</Text>
+              <Pressable testID="serv-plus" style={styles.servBtn} onPress={() => setServings(Math.min(50, curServ + 1))}><Ionicons name="add" size={18} color={colors.onSurface} /></Pressable>
+            </View>
           </View>
+          {curServ !== baseServ && (
+            <Pressable testID="serv-reset" onPress={() => setServings(null)} style={{ alignSelf: "flex-end" }}>
+              <Text style={{ color: colors.brandSecondary, fontSize: 12, fontWeight: "600" }}>Quantità ×{fmtQty(factor)} · torna a {baseServ}</Text>
+            </Pressable>
+          )}
 
           {(r.ingredients || []).length > 0 && (
             <View style={styles.section}>
@@ -116,7 +155,7 @@ export default function RecipeDetail() {
                 <View key={idx} style={styles.ingRow}>
                   <Ionicons name="leaf" size={14} color={colors.brandPrimary} />
                   <Text style={{ color: colors.onSurface, flex: 1 }}>{i.name}</Text>
-                  <Text style={{ color: colors.muted }}>{i.unit === "q.b." ? "q.b." : `${i.qty} ${i.unit}`}</Text>
+                  <Text style={{ color: colors.muted }} testID={`ing-qty-${idx}`}>{i.unit === "q.b." || typeof i.qty !== "number" ? (i.unit === "q.b." ? "q.b." : `${i.qty} ${i.unit}`) : `${fmtQty(i.qty * factor)} ${i.unit}`}</Text>
                 </View>
               ))}
             </View>

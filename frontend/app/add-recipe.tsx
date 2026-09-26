@@ -1,10 +1,12 @@
-import { View, Text, TextInput, Pressable, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, TextInput, Pressable, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator } from "react-native";
+import { Image } from "expo-image";
 import Ionicons from "@react-native-vector-icons/ionicons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
+import { pickImage, uploadImage, chooseImageSource } from "@/src/media";
 import { makeStyles, useTheme, spacing, radius } from "@/src/theme";
 
 const useStyles = makeStyles((c) => ({
@@ -20,6 +22,7 @@ const useStyles = makeStyles((c) => ({
   btnTxt: { color: c.onBrandPrimary, fontWeight: "700", fontSize: 15 },
   addRow: { flexDirection: "row", gap: 6, alignItems: "center", marginTop: spacing.sm },
   ing: { flexDirection: "row", alignItems: "center", padding: spacing.md, backgroundColor: c.surfaceSecondary, borderRadius: radius.md, gap: spacing.sm },
+  photo: { height: 160, borderRadius: radius.lg, backgroundColor: c.surfaceSecondary, alignItems: "center", justifyContent: "center", overflow: "hidden", borderWidth: 1, borderStyle: "dashed", borderColor: c.borderStrong },
 }));
 
 export default function AddRecipe() {
@@ -37,11 +40,17 @@ export default function AddRecipe() {
   const [ings, setIngs] = useState<{ name: string; qty: string; unit: string }[]>([]);
   const [stepTxt, setStepTxt] = useState("");
   const [steps, setSteps] = useState<string[]>([]);
+  const [photo, setPhoto] = useState<{ uri: string; base64: string } | null>(null);
 
   const saveM = useMutation({
-    mutationFn: (b: any) => api("/api/recipes", { method: "POST", body: JSON.stringify(b) }),
+    mutationFn: async (b: any) => {
+      const image_url = photo ? await uploadImage(photo.base64) : null;
+      return api("/api/recipes", { method: "POST", body: JSON.stringify({ ...b, image_url }) });
+    },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["recipes"] }); router.back(); },
   });
+
+  const pickPhoto = () => chooseImageSource(async (s) => { const img = await pickImage(s); if (img) setPhoto(img); });
 
   const save = () => {
     if (!title.trim()) return;
@@ -61,6 +70,22 @@ export default function AddRecipe() {
         </View>
         <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
           <View style={styles.form}>
+            <Pressable testID="rec-photo" style={styles.photo} onPress={pickPhoto}>
+              {photo ? (
+                <>
+                  <Image source={photo.uri} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+                  <View style={{ position: "absolute", right: spacing.sm, bottom: spacing.sm, backgroundColor: colors.surface, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 6, flexDirection: "row", gap: 4, alignItems: "center" }}>
+                    <Ionicons name="camera" size={14} color={colors.brandPrimary} /><Text style={{ color: colors.brandPrimary, fontSize: 12, fontWeight: "700" }}>Cambia</Text>
+                  </View>
+                </>
+              ) : (
+                <>
+                  <Ionicons name="camera-outline" size={32} color={colors.muted} />
+                  <Text style={{ color: colors.muted, marginTop: 6, fontWeight: "600" }}>Aggiungi una foto</Text>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>Fotocamera o galleria</Text>
+                </>
+              )}
+            </Pressable>
             <Text style={styles.label}>Titolo</Text>
             <TextInput testID="rec-title" placeholder="Es. Pasta al pomodoro" placeholderTextColor={colors.muted} value={title} onChangeText={setTitle} style={styles.input} />
             <Text style={styles.label}>Descrizione</Text>
@@ -107,7 +132,10 @@ export default function AddRecipe() {
               </Pressable>
             </View>
 
-            <Pressable testID="save-recipe" onPress={save} style={styles.btn}><Text style={styles.btnTxt}>{saveM.isPending ? "Salvo..." : "Salva ricetta"}</Text></Pressable>
+            <Pressable testID="save-recipe" onPress={save} style={[styles.btn, { flexDirection: "row", gap: spacing.sm, justifyContent: "center" }]} disabled={saveM.isPending}>
+              {saveM.isPending && <ActivityIndicator size="small" color={colors.onBrandPrimary} />}
+              <Text style={styles.btnTxt}>{saveM.isPending ? (photo ? "Carico foto e salvo..." : "Salvo...") : "Salva ricetta"}</Text>
+            </Pressable>
           </View>
         </ScrollView>
       </View>

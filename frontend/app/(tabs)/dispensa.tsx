@@ -75,11 +75,11 @@ export default function Dispensa() {
 
   const addM = useMutation({
     mutationFn: (body: any) => api("/api/pantry", { method: "POST", body: JSON.stringify(body) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pantry"] }); qc.invalidateQueries({ queryKey: ["pantry-all"] }); setShowAdd(false); setName(""); setQty("1"); setExpires(""); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pantry"] }); qc.invalidateQueries({ queryKey: ["pantry-all"] }); qc.invalidateQueries({ queryKey: ["pantry-expiring"] }); setShowAdd(false); setName(""); setQty("1"); setExpires(""); },
   });
   const delM = useMutation({
     mutationFn: (id: string) => api(`/api/pantry/${id}`, { method: "DELETE" }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pantry"] }); qc.invalidateQueries({ queryKey: ["pantry-all"] }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pantry"] }); qc.invalidateQueries({ queryKey: ["pantry-all"] }); qc.invalidateQueries({ queryKey: ["pantry-expiring"] }); },
   });
 
   const items = useMemo(() => listQ.data || [], [listQ.data]);

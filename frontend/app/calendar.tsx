@@ -1,7 +1,7 @@
-import { View, Text, ScrollView, Pressable } from "react-native";
+import { View, Text, ScrollView, Pressable, ActivityIndicator } from "react-native";
 import Ionicons from "@react-native-vector-icons/ionicons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { useMemo } from "react";
 import { api } from "@/src/api";
@@ -17,6 +17,10 @@ const useStyles = makeStyles((c) => ({
   slotRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 6 },
   slotLabel: { color: c.muted, textTransform: "capitalize" },
   slotTitle: { color: c.onSurface, fontWeight: "600", flex: 1, textAlign: "right", marginLeft: spacing.md },
+  shopBar: { marginHorizontal: spacing.lg, marginBottom: spacing.md, backgroundColor: c.brandTertiary, borderRadius: radius.lg, padding: spacing.lg, gap: spacing.sm },
+  shopBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, backgroundColor: c.brandPrimary, borderRadius: radius.pill, paddingVertical: 12 },
+  shopBtnTxt: { color: c.onBrandPrimary, fontWeight: "700" },
+  shopRes: { color: c.onBrandTertiary, fontSize: 13, textAlign: "center" },
 }));
 
 function ymd(d: Date) { return d.toISOString().slice(0, 10); }
@@ -41,6 +45,14 @@ export default function Calendar() {
   const grouped: Record<string, any[]> = {};
   for (const m of q.data || []) (grouped[m.date] = grouped[m.date] || []).push(m);
 
+  const weekEnd = ymd(days[6]);
+  const weekRecipeMeals = (q.data || []).filter((m: any) => m.recipe_id && m.date <= weekEnd).length;
+  const qc = useQueryClient();
+  const shopM = useMutation({
+    mutationFn: () => api<{ added: any[]; in_pantry: string[]; already_listed: string[] }>("/api/meals/to-shopping", { method: "POST", body: JSON.stringify({ start: startStr, end: weekEnd }) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["shopping"] }),
+  });
+
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
       <View style={styles.header}>
@@ -50,6 +62,27 @@ export default function Calendar() {
         <Pressable testID="add-meal-cal" onPress={() => router.push("/add-meal")}><Ionicons name="add-circle" size={28} color={colors.brandPrimary} /></Pressable>
       </View>
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
+        {weekRecipeMeals > 0 && (
+          <View style={styles.shopBar} testID="week-shop-bar">
+            <Text style={{ color: colors.onBrandTertiary, fontWeight: "700" }}>Spesa della settimana</Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>{weekRecipeMeals} pasti con ricetta nei prossimi 7 giorni. Unisco gli ingredienti, tolgo ciò che hai già in dispensa.</Text>
+            <Pressable testID="week-to-shopping" style={styles.shopBtn} onPress={() => shopM.mutate()} disabled={shopM.isPending}>
+              {shopM.isPending ? <ActivityIndicator size="small" color={colors.onBrandPrimary} /> : <Ionicons name="cart" size={18} color={colors.onBrandPrimary} />}
+              <Text style={styles.shopBtnTxt}>Crea lista della spesa</Text>
+            </Pressable>
+            {shopM.data && (
+              <Pressable onPress={() => router.push("/(tabs)/spesa")} testID="week-shop-result">
+                <Text style={styles.shopRes}>
+                  {shopM.data.added.length > 0 ? `${shopM.data.added.length} articoli aggiunti` : "Nulla da aggiungere"}
+                  {shopM.data.in_pantry.length > 0 ? ` · ${shopM.data.in_pantry.length} già in dispensa` : ""}
+                  {shopM.data.already_listed.length > 0 ? ` · ${shopM.data.already_listed.length} già in lista` : ""}
+                  {shopM.data.added.length > 0 ? "  →  Vai alla spesa" : ""}
+                </Text>
+              </Pressable>
+            )}
+            {shopM.isError && <Text style={[styles.shopRes, { color: colors.error }]}>Errore, riprova</Text>}
+          </View>
+        )}
         {days.map((d) => {
           const key = ymd(d);
           const meals = grouped[key] || [];

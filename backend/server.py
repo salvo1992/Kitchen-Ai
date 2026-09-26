@@ -133,6 +133,14 @@ class HouseholdCreateBody(BaseModel):
 class HouseholdJoinBody(BaseModel):
     invite_code: str
 
+class RangeBody(BaseModel):
+    start: str
+    end: str
+
+class UploadB64Body(BaseModel):
+    image_base64: str
+    ext: Optional[str] = "jpg"
+
 # ---------- Household (family sharing) helpers ----------
 SHARED_COLLECTIONS = ["recipes", "pantry", "shopping", "meals"]
 
@@ -423,6 +431,25 @@ async def list_pantry(request: Request, location: Optional[str] = None):
     items = await db.pantry.find(q, {"_id": 0}).sort("created_at", -1).to_list(1000)
     return {"items": items}
 
+@api_router.get("/pantry/expiring")
+async def pantry_expiring(request: Request, days: int = 3):
+    """Items expired or expiring within `days` days, soonest first."""
+    user = await get_user(request)
+    items = await db.pantry.find({**scope(user), "expires_at": {"$nin": [None, ""]}}, {"_id": 0}).to_list(1000)
+    today = datetime.now(timezone.utc).date()
+    out = []
+    for i in items:
+        try:
+            d = datetime.fromisoformat(str(i["expires_at"])[:10]).date()
+        except ValueError:
+            continue
+        left = (d - today).days
+        if left <= days:
+            i["days_left"] = left
+            out.append(i)
+    out.sort(key=lambda x: x["days_left"])
+    return {"items": out, "count": len(out)}
+
 @api_router.post("/pantry")
 async def create_pantry(body: PantryItemCreate, request: Request):
     user = await get_user(request)
@@ -544,6 +571,49 @@ async def delete_meal(mid: str, request: Request):
     user = await get_user(request)
     await db.meals.delete_one({"id": mid, **scope(user)})
     return {"ok": True}
+
+def _fmt_qty(q):
+    if isinstance(q, float) and q == int(q):
+        return int(q)
+    return round(q, 2) if isinstance(q, float) else q
+
+@api_router.post("/meals/to-shopping")
+async def meals_to_shopping(body: RangeBody, request: Request):
+    """Turn all recipe-linked meals in [start, end] into one shopping list: merge duplicates, skip pantry/listed items."""
+    user = await get_user(request)
+    meals = await db.meals.find({**scope(user), "date": {"$gte": body.start, "$lte": body.end}, "recipe_id": {"$nin": [None, ""]}}, {"_id": 0, "recipe_id": 1}).to_list(500)
+    rids = list({m["recipe_id"] for m in meals})
+    if not rids:
+        return {"added": [], "in_pantry": [], "already_listed": [], "meals": 0, "recipes": 0}
+    recipes = await db.recipes.find({**scope(user), "id": {"$in": rids}}, {"_id": 0, "id": 1, "ingredients": 1}).to_list(500)
+    # merge by normalized name; sum qty when unit matches, else keep first unit and count occurrences
+    merged: Dict[str, Dict[str, Any]] = {}
+    for r in recipes:
+        for ing in norm_ingredients(r.get("ingredients") or []):
+            key = _norm_name(ing["name"])
+            if not key:
+                continue
+            cur = merged.get(key)
+            if not cur:
+                merged[key] = {"name": ing["name"], "qty": ing["qty"], "unit": ing["unit"]}
+            elif cur["unit"].lower() == ing["unit"].lower() and cur["unit"] != "q.b.":
+                cur["qty"] = _fmt_qty(float(cur["qty"]) + float(ing["qty"]))
+    pantry_names = [p["name"] for p in await db.pantry.find(scope(user), {"_id": 0, "name": 1}).to_list(1000)]
+    shop_names = [s["name"] for s in await db.shopping.find({**scope(user), "checked": False}, {"_id": 0, "name": 1}).to_list(1000)]
+    added, in_pantry, already = [], [], []
+    now = datetime.now(timezone.utc)
+    for ing in merged.values():
+        name = ing["name"]
+        if any(name_matches(name, p) for p in pantry_names):
+            in_pantry.append(name); continue
+        if any(name_matches(name, s) for s in shop_names):
+            already.append(name); continue
+        doc = {"id": f"shp_{uuid.uuid4().hex[:12]}", "name": name, "qty": ing["qty"], "unit": ing["unit"], "aisle": guess_aisle(name),
+               "checked": False, "note": "Piano settimanale", "created_at": now, **owned(user)}
+        await db.shopping.insert_one(doc)
+        doc.pop("_id", None)
+        added.append(doc)
+    return {"added": added, "in_pantry": in_pantry, "already_listed": already, "meals": len(meals), "recipes": len(recipes)}
 
 
 # ---------- Household (family sharing) ----------
@@ -812,6 +882,15 @@ async def import_photo(body: ImportPhotoBody, request: Request):
 
 
 # ---------- Storage ----------
+async def _store_upload(user: dict, data: bytes, ext: str, ct: str):
+    path = f"{APP_NAME}/uploads/{user['user_id']}/{uuid.uuid4().hex}.{ext}"
+    result = await run_in_threadpool(lambda: put_object(path, data, ct))
+    await db.uploads.insert_one({"path": result["path"], "user_id": user["user_id"], "created_at": datetime.now(timezone.utc), "content_type": ct})
+    # long-lived token so <Image> tags (web and native) can load the file without headers
+    token = uuid.uuid4().hex
+    await db.file_tokens.insert_one({"token": token, "path": result["path"], "user_id": user["user_id"], "expires_at": datetime.now(timezone.utc) + timedelta(days=3650)})
+    return {"path": result["path"], "url": f"/api/files/{result['path']}?token={token}", "token": token}
+
 @api_router.post("/upload")
 async def upload(request: Request, file: UploadFile = File(...)):
     user = await get_user(request)
@@ -819,18 +898,27 @@ async def upload(request: Request, file: UploadFile = File(...)):
     if ext not in ["jpg", "jpeg", "png", "webp"]:
         ext = "jpg"
     data = await file.read()
-    path = f"{APP_NAME}/uploads/{user['user_id']}/{uuid.uuid4().hex}.{ext}"
-    ct = file.content_type or f"image/{ext}"
-    def _do():
-        return put_object(path, data, ct)
-    result = await run_in_threadpool(_do)
-    await db.uploads.insert_one({"path": result["path"], "user_id": user["user_id"], "created_at": datetime.now(timezone.utc), "content_type": ct})
-    # generate short-lived token so web <img> can load via query
-    token = uuid.uuid4().hex
-    await db.file_tokens.insert_one({"token": token, "path": result["path"], "user_id": user["user_id"], "expires_at": datetime.now(timezone.utc) + timedelta(hours=6)})
-    backend_url = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "")
-    url = f"/api/files/{result['path']}?token={token}"
-    return {"path": result["path"], "url": url, "token": token}
+    return await _store_upload(user, data, ext, file.content_type or f"image/{ext}")
+
+@api_router.post("/upload-base64")
+async def upload_base64(body: UploadB64Body, request: Request):
+    user = await get_user(request)
+    b64 = body.image_base64
+    ext = (body.ext or "jpg").lower().strip(".")
+    if b64.startswith("data:"):
+        head, b64 = b64.split(",", 1)
+        m = re.search(r"image/(\w+)", head)
+        if m:
+            ext = m.group(1)
+    if ext not in ["jpg", "jpeg", "png", "webp"]:
+        ext = "jpg"
+    try:
+        data = base64.b64decode(b64)
+    except Exception:
+        raise HTTPException(400, "immagine non valida")
+    if len(data) > 8 * 1024 * 1024:
+        raise HTTPException(413, "immagine troppo grande (max 8MB)")
+    return await _store_upload(user, data, ext, f"image/{'jpeg' if ext == 'jpg' else ext}")
 
 @api_router.get("/files/{path:path}")
 async def files(path: str, request: Request, token: Optional[str] = Query(None)):
