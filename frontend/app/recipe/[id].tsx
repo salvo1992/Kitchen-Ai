@@ -1,4 +1,4 @@
-import { View, Text, ScrollView, Pressable, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, Pressable, ActivityIndicator, Alert, Platform } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import Ionicons from "@react-native-vector-icons/ionicons";
@@ -28,6 +28,10 @@ const useStyles = makeStyles((c) => ({
   stepNumTxt: { color: c.onBrandPrimary, fontWeight: "700", fontSize: 12 },
   cookBtn: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: spacing.sm, backgroundColor: c.brandPrimary, borderRadius: radius.pill, paddingVertical: 16, marginTop: spacing.lg },
   cookTxt: { color: c.onBrandPrimary, fontWeight: "700", fontSize: 16 },
+  cookedBtn: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: spacing.sm, backgroundColor: c.brandSecondary, borderRadius: radius.pill, paddingVertical: 14, marginTop: spacing.sm },
+  cookedTxt: { color: c.onBrandSecondary, fontWeight: "700", fontSize: 15 },
+  cookedBox: { backgroundColor: c.brandTertiary, borderRadius: radius.md, padding: spacing.lg, marginTop: spacing.md, gap: 6 },
+  cookedLine: { color: c.onBrandTertiary, fontSize: 13, lineHeight: 19 },
   shopBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: c.brandTertiary, borderRadius: radius.pill, paddingVertical: 8, paddingHorizontal: spacing.md, alignSelf: "flex-start" },
   shopBtnTxt: { color: c.brandPrimary, fontWeight: "700", fontSize: 13 },
   resultBox: { backgroundColor: c.brandTertiary, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm, gap: 4 },
@@ -75,6 +79,16 @@ export default function RecipeDetail() {
   });
 
   const [servings, setServings] = useState<number | null>(null);
+  const cookedM = useMutation({
+    mutationFn: (serv: number) => api<{ updated: any[]; finished: string[]; added_to_shopping: string[]; not_found: string[]; items_saved: number }>(`/api/recipes/${id}/cooked`, { method: "POST", body: JSON.stringify({ servings: serv }) }),
+    onSuccess: () => { ["pantry", "pantry-all", "pantry-expiring", "shopping", "recipes", "waste-stats"].forEach((k) => qc.invalidateQueries({ queryKey: [k] })); },
+  });
+  const confirmCooked = (serv: number) => {
+    if (Platform.OS === "web") { cookedM.mutate(serv); return; }
+    Alert.alert("Hai cucinato questa ricetta?", `Scalo gli ingredienti per ${serv} ${serv === 1 ? "porzione" : "porzioni"} dalla dispensa. Ciò che finisce va in lista della spesa.`, [
+      { text: "Annulla", style: "cancel" }, { text: "Sì, cucinato!", onPress: () => cookedM.mutate(serv) },
+    ]);
+  };
   const photoM = useMutation({
     mutationFn: async (source: "camera" | "library") => {
       const img = await pickImage(source);
@@ -104,6 +118,9 @@ export default function RecipeDetail() {
           <View style={[styles.headerBtns, { top: insets.top }]}>
             <Pressable style={styles.circleBtn} onPress={() => router.back()}><Ionicons name="arrow-back" size={20} color={colors.onSurface} /></Pressable>
             <View style={{ flexDirection: "row", gap: 8 }}>
+              <Pressable testID="edit-recipe" style={styles.circleBtn} onPress={() => router.push({ pathname: "/add-recipe", params: { id: r.id } })}>
+                <Ionicons name="pencil" size={18} color={colors.onSurface} />
+              </Pressable>
               <Pressable testID="fav-btn" style={styles.circleBtn} onPress={() => favM.mutate(!r.favorite)}>
                 <Ionicons name={r.favorite ? "heart" : "heart-outline"} size={20} color={r.favorite ? colors.brandSecondary : colors.onSurface} />
               </Pressable>
@@ -177,6 +194,23 @@ export default function RecipeDetail() {
               <Text style={styles.cookTxt}>Cucina passo-passo</Text>
             </Pressable>
           )}
+          {(r.ingredients || []).length > 0 && (
+            <Pressable testID="cooked-btn" onPress={() => confirmCooked(curServ)} style={[styles.cookedBtn, cookedM.isPending && { opacity: 0.6 }]} disabled={cookedM.isPending}>
+              {cookedM.isPending ? <ActivityIndicator size="small" color={colors.onBrandSecondary} /> : <Ionicons name="checkmark-done" size={20} color={colors.onBrandSecondary} />}
+              <Text style={styles.cookedTxt}>Cucinato! Scala dalla dispensa ({curServ} porz.)</Text>
+            </Pressable>
+          )}
+          {cookedM.data && (
+            <View style={styles.cookedBox} testID="cooked-result">
+              <Text style={[styles.cookedLine, { fontWeight: "700", fontSize: 14 }]}>Dispensa aggiornata 🍽️</Text>
+              {cookedM.data.updated.length > 0 && <Text style={styles.cookedLine}>Usati: {cookedM.data.updated.map((u) => `${u.name} −${u.used} ${u.unit}`).join(", ")}</Text>}
+              {cookedM.data.finished.length > 0 && <Text style={styles.cookedLine}>Finiti (a 0): {cookedM.data.finished.join(", ")}</Text>}
+              {cookedM.data.added_to_shopping.length > 0 && <Text style={styles.cookedLine}>🛒 Aggiunti alla spesa: {cookedM.data.added_to_shopping.join(", ")}</Text>}
+              {cookedM.data.not_found.length > 0 && <Text style={styles.cookedLine}>Non in dispensa: {cookedM.data.not_found.join(", ")}</Text>}
+              {cookedM.data.items_saved > 0 && <Text style={[styles.cookedLine, { color: colors.brandSecondary, fontWeight: "700" }]}>🎉 {cookedM.data.items_saved} {cookedM.data.items_saved === 1 ? "prodotto salvato" : "prodotti salvati"} dalla scadenza!</Text>}
+            </View>
+          )}
+          {cookedM.isError && <Text style={{ color: colors.error, marginTop: spacing.sm }}>Errore, riprova</Text>}
         </View>
       </ScrollView>
     </View>

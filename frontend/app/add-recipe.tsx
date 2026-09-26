@@ -2,11 +2,11 @@ import { View, Text, TextInput, Pressable, ScrollView, KeyboardAvoidingView, Pla
 import { Image } from "expo-image";
 import Ionicons from "@react-native-vector-icons/ionicons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { useRouter } from "expo-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { api } from "@/src/api";
-import { pickImage, uploadImage, chooseImageSource } from "@/src/media";
+import { pickImage, uploadImage, chooseImageSource, resolveUrl } from "@/src/media";
 import { makeStyles, useTheme, spacing, radius } from "@/src/theme";
 
 const useStyles = makeStyles((c) => ({
@@ -31,32 +31,51 @@ export default function AddRecipe() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const qc = useQueryClient();
+  const { id } = useLocalSearchParams<{ id?: string }>();
+  const isEdit = !!id;
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
   const [time, setTime] = useState("30");
   const [serv, setServ] = useState("2");
   const [ingName, setIngName] = useState("");
   const [ingQty, setIngQty] = useState("");
+  const [ingUnit, setIngUnit] = useState("");
   const [ings, setIngs] = useState<{ name: string; qty: string; unit: string }[]>([]);
   const [stepTxt, setStepTxt] = useState("");
   const [steps, setSteps] = useState<string[]>([]);
   const [photo, setPhoto] = useState<{ uri: string; base64: string } | null>(null);
+  const [existingImage, setExistingImage] = useState<string | null>(null);
+
+  const existingQ = useQuery({ queryKey: ["recipe", id], queryFn: () => api<any>(`/api/recipes/${id}`), enabled: isEdit, refetchInterval: false });
+  useEffect(() => {
+    const r = existingQ.data;
+    if (!r) return;
+    setTitle(r.title || ""); setDesc(r.description || ""); setTime(String(r.time_min || 30)); setServ(String(r.servings || 2));
+    setIngs((r.ingredients || []).map((i: any) => ({ name: i.name, qty: String(i.qty ?? 1), unit: i.unit || "pz" })));
+    setSteps(r.steps || []); setExistingImage(r.image_url || null);
+  }, [existingQ.data]);
 
   const saveM = useMutation({
     mutationFn: async (b: any) => {
-      const image_url = photo ? await uploadImage(photo.base64) : null;
+      const image_url = photo ? await uploadImage(photo.base64) : existingImage;
+      if (isEdit) return api(`/api/recipes/${id}`, { method: "PATCH", body: JSON.stringify({ ...b, image_url }) });
       return api("/api/recipes", { method: "POST", body: JSON.stringify({ ...b, image_url }) });
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["recipes"] }); router.back(); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["recipes"] });
+      if (isEdit) qc.invalidateQueries({ queryKey: ["recipe", id] });
+      router.back();
+    },
   });
 
   const pickPhoto = () => chooseImageSource(async (s) => { const img = await pickImage(s); if (img) setPhoto(img); });
+  const previewUri = photo?.uri || resolveUrl(existingImage);
 
   const save = () => {
     if (!title.trim()) return;
     saveM.mutate({
       title: title.trim(), description: desc, time_min: parseInt(time) || 30, servings: parseInt(serv) || 2,
-      ingredients: ings.map((i) => ({ name: i.name, qty: parseFloat(i.qty) || 1, unit: i.unit || "pz" })),
+      ingredients: ings.map((i) => ({ name: i.name, qty: i.unit === "q.b." ? 1 : (parseFloat(i.qty.replace(",", ".")) || 1), unit: i.unit || "pz" })),
       steps,
     });
   };
@@ -66,14 +85,14 @@ export default function AddRecipe() {
       <View style={[styles.root, { paddingTop: insets.top }]}>
         <View style={styles.header}>
           <Pressable style={styles.back} onPress={() => router.back()}><Ionicons name="arrow-back" size={20} color={colors.onSurface} /></Pressable>
-          <Text style={styles.title}>Nuova ricetta</Text>
+          <Text style={styles.title}>{isEdit ? "Modifica ricetta" : "Nuova ricetta"}</Text>
         </View>
         <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
           <View style={styles.form}>
             <Pressable testID="rec-photo" style={styles.photo} onPress={pickPhoto}>
-              {photo ? (
+              {previewUri ? (
                 <>
-                  <Image source={photo.uri} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+                  <Image source={previewUri} style={{ width: "100%", height: "100%" }} contentFit="cover" />
                   <View style={{ position: "absolute", right: spacing.sm, bottom: spacing.sm, backgroundColor: colors.surface, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 6, flexDirection: "row", gap: 4, alignItems: "center" }}>
                     <Ionicons name="camera" size={14} color={colors.brandPrimary} /><Text style={{ color: colors.brandPrimary, fontSize: 12, fontWeight: "700" }}>Cambia</Text>
                   </View>
@@ -103,16 +122,17 @@ export default function AddRecipe() {
 
             <Text style={styles.label}>Ingredienti</Text>
             {ings.map((i, idx) => (
-              <View key={idx} style={styles.ing}>
+              <View key={idx} style={styles.ing} testID={`edit-ing-${idx}`}>
                 <Ionicons name="ellipse" size={8} color={colors.brandPrimary} />
-                <Text style={{ color: colors.onSurface, flex: 1 }}>{i.qty} {i.unit} · {i.name}</Text>
-                <Pressable onPress={() => setIngs(ings.filter((_, k) => k !== idx))}><Ionicons name="close" size={16} color={colors.muted} /></Pressable>
+                <Text style={{ color: colors.onSurface, flex: 1 }}>{i.unit === "q.b." ? "q.b." : `${i.qty} ${i.unit}`} · {i.name}</Text>
+                <Pressable testID={`remove-ing-${idx}`} onPress={() => setIngs(ings.filter((_, k) => k !== idx))}><Ionicons name="close" size={16} color={colors.muted} /></Pressable>
               </View>
             ))}
             <View style={styles.row}>
-              <TextInput placeholder="Q.tà" placeholderTextColor={colors.muted} value={ingQty} onChangeText={setIngQty} style={[styles.input, { flex: 1 }]} />
-              <TextInput placeholder="Ingrediente" placeholderTextColor={colors.muted} value={ingName} onChangeText={setIngName} style={[styles.input, { flex: 2 }]} />
-              <Pressable onPress={() => { if (ingName.trim()) { setIngs([...ings, { name: ingName.trim(), qty: ingQty || "1", unit: "pz" }]); setIngName(""); setIngQty(""); } }} style={[styles.input, { alignItems: "center", justifyContent: "center", paddingVertical: 12, backgroundColor: colors.brandTertiary }]}>
+              <TextInput testID="ing-qty" placeholder="Q.tà" placeholderTextColor={colors.muted} value={ingQty} onChangeText={setIngQty} style={[styles.input, { flex: 1 }]} keyboardType="numeric" />
+              <TextInput testID="ing-unit" placeholder="Unità" placeholderTextColor={colors.muted} value={ingUnit} onChangeText={setIngUnit} style={[styles.input, { flex: 1 }]} />
+              <TextInput testID="ing-name" placeholder="Ingrediente" placeholderTextColor={colors.muted} value={ingName} onChangeText={setIngName} style={[styles.input, { flex: 2 }]} />
+              <Pressable testID="add-ing" onPress={() => { if (ingName.trim()) { setIngs([...ings, { name: ingName.trim(), qty: ingQty || "1", unit: ingUnit.trim() || "pz" }]); setIngName(""); setIngQty(""); setIngUnit(""); } }} style={[styles.input, { alignItems: "center", justifyContent: "center", paddingVertical: 12, backgroundColor: colors.brandTertiary }]}>
                 <Ionicons name="add" size={20} color={colors.brandPrimary} />
               </Pressable>
             </View>
@@ -134,7 +154,7 @@ export default function AddRecipe() {
 
             <Pressable testID="save-recipe" onPress={save} style={[styles.btn, { flexDirection: "row", gap: spacing.sm, justifyContent: "center" }]} disabled={saveM.isPending}>
               {saveM.isPending && <ActivityIndicator size="small" color={colors.onBrandPrimary} />}
-              <Text style={styles.btnTxt}>{saveM.isPending ? (photo ? "Carico foto e salvo..." : "Salvo...") : "Salva ricetta"}</Text>
+              <Text style={styles.btnTxt}>{saveM.isPending ? (photo ? "Carico foto e salvo..." : "Salvo...") : isEdit ? "Salva modifiche" : "Salva ricetta"}</Text>
             </Pressable>
           </View>
         </ScrollView>

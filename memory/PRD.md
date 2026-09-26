@@ -40,6 +40,13 @@ Full kitchen command center: plan meals, cook with AI, run pantry/fridge/freezer
 - Lint frontend: 0 warning
 - Backlog: nessuno
 
+## Feature aggiunte (iteration_5)
+- Cucinato!: `POST /api/recipes/{id}/cooked {servings}` scala la dispensa (min 0), i finiti vanno in spesa ("Finito cucinando: …"), log in `consumption_log {items[{pantry_id,name,used_qty,unit,days_left,price}], month}`
+- Ricerca ingredienti: `GET /api/recipes?q=&cookable=` cerca titolo/ingredienti/tag, restituisce `missing_count/missing_names/cookable` (q.b. e staples ignorati); chip "Con ciò che ho" + badge
+- Ricetta AI da ricerca: `POST /api/ai/recipe {query}` → anteprima → salva con ok utente
+- Modifica ricetta: `/add-recipe?id=` precompilato, PATCH; input unità ingredienti
+- Statistiche sprechi: `GET /api/stats/waste?month=` (ricette cucinate, salvati dalla scadenza ≤3g, € = price o 2,50 default, scaduti ora); card "Anti-spreco" in Oggi; campo `price` opzionale su pantry (Dispensa + scanner)
+
 ## Feature aggiunte (iteration_4)
 - Scala porzioni: stepper nel dettaglio ricetta, quantità ricalcolate client-side (`fmtQty`), q.b. invariato
 - Avvisi scadenze: `GET /api/pantry/expiring?days=3`; banner in Oggi con nomi; `src/reminders.ts` notifica locale giornaliera (expo-notifications, DAILY trigger) risincronizzata a ogni caricamento di Oggi; orario/toggle in Impostazioni (`ReminderCard`, AsyncStorage). Solo su telefono, non web

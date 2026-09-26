@@ -66,6 +66,7 @@ export default function Dispensa() {
   const [qty, setQty] = useState("1");
   const [unit, setUnit] = useState("pz");
   const [expires, setExpires] = useState("");
+  const [price, setPrice] = useState("");
 
   const listQ = useQuery({
     queryKey: ["pantry", tab],
@@ -75,7 +76,7 @@ export default function Dispensa() {
 
   const addM = useMutation({
     mutationFn: (body: any) => api("/api/pantry", { method: "POST", body: JSON.stringify(body) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pantry"] }); qc.invalidateQueries({ queryKey: ["pantry-all"] }); qc.invalidateQueries({ queryKey: ["pantry-expiring"] }); setShowAdd(false); setName(""); setQty("1"); setExpires(""); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["pantry"] }); qc.invalidateQueries({ queryKey: ["pantry-all"] }); qc.invalidateQueries({ queryKey: ["pantry-expiring"] }); setShowAdd(false); setName(""); setQty("1"); setExpires(""); setPrice(""); },
   });
   const delM = useMutation({
     mutationFn: (id: string) => api(`/api/pantry/${id}`, { method: "DELETE" }),
@@ -104,7 +105,7 @@ export default function Dispensa() {
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.rowName}>{item.name}</Text>
-          <Text style={styles.rowMeta}>{item.qty} {item.unit}{item.expires_at ? `  ·  scade ${new Date(item.expires_at).toLocaleDateString("it-IT")}` : ""}</Text>
+          <Text style={styles.rowMeta}>{item.qty} {item.unit}{item.price ? `  ·  ${Number(item.price).toFixed(2).replace(".", ",")} €` : ""}{item.expires_at ? `  ·  scade ${new Date(item.expires_at).toLocaleDateString("it-IT")}` : ""}</Text>
         </View>
         {d !== null && (
           <View style={[styles.badge, { backgroundColor: expired ? colors.error : urgent ? colors.warning : colors.brandTertiary }]}>
@@ -183,8 +184,11 @@ export default function Dispensa() {
                 <TextInput testID="pantry-qty" placeholder="Quantità" placeholderTextColor={colors.muted} value={qty} onChangeText={setQty} style={[styles.input, { flex: 1 }]} keyboardType="numeric" />
                 <TextInput testID="pantry-unit" placeholder="Unità" placeholderTextColor={colors.muted} value={unit} onChangeText={setUnit} style={[styles.input, { flex: 1 }]} />
               </View>
-              <TextInput testID="pantry-expires" placeholder="Scadenza (YYYY-MM-DD, opzionale)" placeholderTextColor={colors.muted} value={expires} onChangeText={setExpires} style={styles.input} />
-              <Pressable testID="pantry-save" onPress={() => name.trim() && addM.mutate({ name: name.trim(), qty: parseFloat(qty) || 1, unit, location: tab, expires_at: expires || null })} style={styles.btn}>
+              <View style={{ flexDirection: "row", gap: spacing.sm }}>
+                <TextInput testID="pantry-expires" placeholder="Scadenza (YYYY-MM-DD)" placeholderTextColor={colors.muted} value={expires} onChangeText={setExpires} style={[styles.input, { flex: 2 }]} />
+                <TextInput testID="pantry-price" placeholder="Prezzo €" placeholderTextColor={colors.muted} value={price} onChangeText={setPrice} style={[styles.input, { flex: 1 }]} keyboardType="decimal-pad" />
+              </View>
+              <Pressable testID="pantry-save" onPress={() => name.trim() && addM.mutate({ name: name.trim(), qty: parseFloat(qty) || 1, unit, location: tab, expires_at: expires || null, price: price ? parseFloat(price.replace(",", ".")) || null : null })} style={styles.btn}>
                 <Text style={styles.btnTxt}>{addM.isPending ? "Salvo..." : "Aggiungi"}</Text>
               </Pressable>
             </Pressable>

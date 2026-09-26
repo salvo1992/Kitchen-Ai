@@ -65,6 +65,7 @@ export default function ScanBarcode() {
   const [unit, setUnit] = useState("pz");
   const [location, setLocation] = useState<string>(params.location || "pantry");
   const [expires, setExpires] = useState("");
+  const [price, setPrice] = useState("");
 
   const lookup = useMutation({
     mutationFn: (c: string) => api<Product>(`/api/products/barcode/${encodeURIComponent(c)}`),
@@ -197,12 +198,20 @@ export default function ScanBarcode() {
                     </Pressable>
                   ))}
                 </View>
-                <Text style={styles.label}>Scadenza (opzionale)</Text>
-                <TextInput testID="scan-expires" placeholder="YYYY-MM-DD" placeholderTextColor={colors.muted} value={expires} onChangeText={setExpires} style={styles.input} />
+                <View style={styles.row}>
+                  <View style={{ flex: 2 }}>
+                    <Text style={styles.label}>Scadenza (opzionale)</Text>
+                    <TextInput testID="scan-expires" placeholder="YYYY-MM-DD" placeholderTextColor={colors.muted} value={expires} onChangeText={setExpires} style={styles.input} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.label}>Prezzo €</Text>
+                    <TextInput testID="scan-price" placeholder="es. 2,50" placeholderTextColor={colors.muted} value={price} onChangeText={setPrice} style={styles.input} keyboardType="decimal-pad" />
+                  </View>
+                </View>
                 <Pressable
                   testID="scan-save"
                   disabled={!name.trim() || saveM.isPending}
-                  onPress={() => saveM.mutate({ name: name.trim(), qty: parseFloat(qty) || 1, unit: unit || "pz", location, expires_at: expires || null, barcode: code || null, image_url: product?.image_url || null })}
+                  onPress={() => saveM.mutate({ name: name.trim(), qty: parseFloat(qty) || 1, unit: unit || "pz", location, expires_at: expires || null, barcode: code || null, image_url: product?.image_url || null, price: price ? parseFloat(price.replace(",", ".")) || null : null })}
                   style={[styles.btn, { marginTop: spacing.sm, opacity: name.trim() ? 1 : 0.5 }]}
                 >
                   {saveM.isPending ? <ActivityIndicator color={colors.onBrandPrimary} /> : <><Ionicons name="add" size={18} color={colors.onBrandPrimary} /><Text style={styles.btnTxt}>Aggiungi in {LOCATIONS.find((l) => l.key === location)?.label}</Text></>}

@@ -93,6 +93,13 @@ class PantryItemCreate(BaseModel):
     expires_at: Optional[str] = None  # ISO date
     barcode: Optional[str] = None
     image_url: Optional[str] = None
+    price: Optional[float] = None  # € per item, optional
+
+class CookedBody(BaseModel):
+    servings: Optional[int] = None
+
+class AiRecipeBody(BaseModel):
+    query: str
 
 class ShoppingItemCreate(BaseModel):
     name: str
@@ -346,16 +353,55 @@ async def logout(request: Request):
 
 
 # ---------- Recipes ----------
+DEFAULT_PRICE = 2.5
+PANTRY_STAPLES = {"sale", "pepe", "acqua", "sale e pepe", "olio", "olio doliva", "olio evo", "olio extravergine"}
+
+def _days_left(expires_at) -> Optional[int]:
+    if not expires_at:
+        return None
+    try:
+        return (datetime.fromisoformat(str(expires_at)[:10]).date() - datetime.now(timezone.utc).date()).days
+    except ValueError:
+        return None
+
+def _match_pantry(recipe_ings: List[Dict[str, Any]], pantry: List[Dict[str, Any]]):
+    """Return (matched, missing) ingredient lists. Staples / q.b. items never count as missing."""
+    matched, missing = [], []
+    for ing in recipe_ings:
+        n = _norm_name(ing.get("name", ""))
+        if not n:
+            continue
+        hit = next((p for p in pantry if name_matches(ing["name"], p["name"])), None)
+        if hit:
+            matched.append({**ing, "pantry_id": hit["id"]})
+        elif ing.get("unit") == "q.b." or n in PANTRY_STAPLES:
+            continue
+        else:
+            missing.append(ing)
+    return matched, missing
+
 @api_router.get("/recipes")
-async def list_recipes(request: Request, q: Optional[str] = None, favorite: Optional[bool] = None):
+async def list_recipes(request: Request, q: Optional[str] = None, favorite: Optional[bool] = None, cookable: Optional[bool] = None):
     user = await get_user(request)
     query = scope(user)
     if favorite is not None:
         query["favorite"] = favorite
     if q:
-        query["title"] = {"$regex": re.escape(q), "$options": "i"}
+        rx = {"$regex": re.escape(q.strip()), "$options": "i"}
+        query = {"$and": [query, {"$or": [{"title": rx}, {"ingredients.name": rx}, {"tags": rx}]}]}
     items = await db.recipes.find(query, {"_id": 0}).sort("created_at", -1).to_list(500)
-    return {"items": items}
+    pantry = await db.pantry.find({**scope(user), "qty": {"$gt": 0}}, {"_id": 0, "id": 1, "name": 1}).to_list(1000)
+    out = []
+    for r in items:
+        ings = norm_ingredients(r.get("ingredients") or [])
+        matched, missing = _match_pantry(ings, pantry)
+        r["missing_count"] = len(missing)
+        r["missing_names"] = [m["name"] for m in missing][:5]
+        r["cookable"] = len(ings) > 0 and len(missing) == 0
+        if cookable and not r["cookable"]:
+            continue
+        out.append(r)
+    return {"items": out}
 
 @api_router.post("/recipes")
 async def create_recipe(body: RecipeCreate, request: Request):
@@ -420,6 +466,75 @@ async def recipe_to_shopping(rid: str, request: Request):
         added.append(doc)
     return {"added": added, "in_pantry": in_pantry, "already_listed": already}
 
+@api_router.post("/recipes/{rid}/cooked")
+async def recipe_cooked(rid: str, body: CookedBody, request: Request):
+    """Mark a recipe as cooked: subtract ingredients from pantry (qty never < 0), add finished items to shopping, log consumption."""
+    user = await get_user(request)
+    r = await db.recipes.find_one({"id": rid, **scope(user)}, {"_id": 0})
+    if not r:
+        raise HTTPException(404, "not found")
+    base = _to_number(r.get("servings")) or 2
+    factor = (body.servings or base) / base
+    pantry = await db.pantry.find(scope(user), {"_id": 0}).to_list(1000)
+    shop_names = [s["name"] for s in await db.shopping.find({**scope(user), "checked": False}, {"_id": 0, "name": 1}).to_list(1000)]
+    now = datetime.now(timezone.utc)
+    updated, finished, added_shopping, not_found, log_items = [], [], [], [], []
+    for ing in norm_ingredients(r.get("ingredients") or []):
+        hit = next((p for p in pantry if name_matches(ing["name"], p["name"])), None)
+        if not hit:
+            if ing.get("unit") != "q.b." and _norm_name(ing["name"]) not in PANTRY_STAPLES:
+                not_found.append(ing["name"])
+            continue
+        cur = float(hit.get("qty") or 0)
+        same_unit = (hit.get("unit") or "").lower() == (ing.get("unit") or "").lower()
+        if ing.get("unit") == "q.b.":
+            used = 0.0
+        elif same_unit:
+            used = min(cur, float(ing["qty"]) * factor)
+        else:
+            used = min(cur, 1.0)  # unit mismatch: consume one package
+        new_qty = _fmt_qty(max(0.0, cur - used))
+        await db.pantry.update_one({"id": hit["id"]}, {"$set": {"qty": new_qty}})
+        hit["qty"] = new_qty
+        dl = _days_left(hit.get("expires_at"))
+        log_items.append({"pantry_id": hit["id"], "name": hit["name"], "used_qty": _fmt_qty(used), "unit": hit.get("unit"), "days_left": dl,
+                          "price": hit.get("price") if isinstance(hit.get("price"), (int, float)) else None})
+        updated.append({"name": hit["name"], "used": _fmt_qty(used), "unit": hit.get("unit"), "left": new_qty})
+        if new_qty == 0 and used > 0:
+            finished.append(hit["name"])
+            if not any(name_matches(hit["name"], s) for s in shop_names):
+                doc = {"id": f"shp_{uuid.uuid4().hex[:12]}", "name": hit["name"], "qty": 1, "unit": hit.get("unit") or "pz", "aisle": guess_aisle(hit["name"]),
+                       "checked": False, "note": f"Finito cucinando: {r['title']}", "created_at": now, **owned(user)}
+                await db.shopping.insert_one(doc)
+                shop_names.append(hit["name"])
+                added_shopping.append(hit["name"])
+    await db.consumption_log.insert_one({"id": f"log_{uuid.uuid4().hex[:12]}", "recipe_id": rid, "title": r["title"], "servings": body.servings or base,
+                                         "items": log_items, "created_at": now, "month": now.strftime("%Y-%m"), **owned(user)})
+    return {"updated": updated, "finished": finished, "added_to_shopping": added_shopping, "not_found": not_found, "items_saved": sum(1 for i in log_items if i["days_left"] is not None and i["days_left"] <= 3)}
+
+@api_router.get("/stats/waste")
+async def waste_stats(request: Request, month: Optional[str] = None):
+    """Monthly anti-waste card: recipes cooked, items used, items saved from expiring (≤3 days), money not wasted."""
+    user = await get_user(request)
+    m = month or datetime.now(timezone.utc).strftime("%Y-%m")
+    if not re.match(r"^\d{4}-\d{2}$", m):
+        raise HTTPException(400, "month non valido (YYYY-MM)")
+    logs = await db.consumption_log.find({**scope(user), "month": m}, {"_id": 0}).to_list(2000)
+    items_used = saved = 0
+    money = 0.0
+    for lg in logs:
+        for it in lg.get("items", []):
+            if not it.get("used_qty"):
+                continue
+            items_used += 1
+            if it.get("days_left") is not None and it["days_left"] <= 3:
+                saved += 1
+                money += float(it["price"]) if it.get("price") is not None else DEFAULT_PRICE
+    expired_now = sum(1 for p in await db.pantry.find({**scope(user), "expires_at": {"$nin": [None, ""]}, "qty": {"$gt": 0}}, {"_id": 0, "expires_at": 1}).to_list(1000)
+                      if (_days_left(p.get("expires_at")) or 0) < 0)
+    return {"month": m, "recipes_cooked": len(logs), "items_used": items_used, "items_saved": saved, "money_saved": round(money, 2), "expired_now": expired_now,
+            "last_cooked": sorted([{"title": l["title"], "at": l["created_at"].isoformat() if isinstance(l["created_at"], datetime) else str(l["created_at"])} for l in logs], key=lambda x: x["at"], reverse=True)[:3]}
+
 
 # ---------- Pantry ----------
 @api_router.get("/pantry")
@@ -435,7 +550,7 @@ async def list_pantry(request: Request, location: Optional[str] = None):
 async def pantry_expiring(request: Request, days: int = 3):
     """Items expired or expiring within `days` days, soonest first."""
     user = await get_user(request)
-    items = await db.pantry.find({**scope(user), "expires_at": {"$nin": [None, ""]}}, {"_id": 0}).to_list(1000)
+    items = await db.pantry.find({**scope(user), "expires_at": {"$nin": [None, ""]}, "qty": {"$gt": 0}}, {"_id": 0}).to_list(1000)
     today = datetime.now(timezone.utc).date()
     out = []
     for i in items:
@@ -761,6 +876,38 @@ async def what_can_i_cook(request: Request, body: CookBody):
     return {"suggestions": out}
 
 SLOTS = ["colazione", "pranzo", "cena"]
+
+@api_router.post("/ai/recipe")
+async def ai_recipe(body: AiRecipeBody, request: Request):
+    """Generate ONE complete recipe from a free-text query (preview only; save with POST /recipes)."""
+    user = await get_user(request)
+    qtxt = body.query.strip()
+    if len(qtxt) < 2:
+        raise HTTPException(400, "descrivi la ricetta che cerchi")
+    pantry = await db.pantry.find({**scope(user), "qty": {"$gt": 0}}, {"_id": 0, "name": 1}).to_list(200)
+    names = ", ".join(p["name"] for p in pantry[:60])
+    prompt = (
+        f"Crea una ricetta completa per: \"{qtxt}\". "
+        f"{'Nota: l utente ha in casa ' + names + '; usali SOLO se sono ingredienti naturali di questa ricetta, altrimenti ignorali e resta fedele alla ricetta tradizionale. ' if names else ''}"
+        "Rispondi SOLO con JSON valido: "
+        '{"title":"..","description":"..","time_min":30,"servings":2,"ingredients":[{"name":"..","qty":1,"unit":"g"}],"steps":["..",".."],"tags":[".."]}. '
+        "qty numerica (per 'quanto basta' usa qty 1 e unit \"q.b.\"), 3-8 passaggi chiari in italiano."
+    )
+    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"rec_{user['user_id']}_{uuid.uuid4().hex[:6]}", system_message=_chef_system_prompt()).with_model("gemini", "gemini-3-flash-preview")
+    try:
+        text = await chat.send_message(UserMessage(text=prompt))
+        data = extract_json(text if isinstance(text, str) else str(text))
+    except Exception as e:
+        logging.error(f"ai recipe err: {e}")
+        raise HTTPException(502, "Chef AI non ha risposto, riprova")
+    if isinstance(data, list):
+        data = data[0] if data else None
+    if not isinstance(data, dict) or not data.get("title"):
+        raise HTTPException(502, "Chef AI non ha trovato una ricetta valida, riprova")
+    return {"recipe": {"title": str(data["title"]).strip(), "description": str(data.get("description") or ""),
+                       "time_min": _to_number(data.get("time_min")) or 30, "servings": _to_number(data.get("servings")) or 2,
+                       "ingredients": norm_ingredients(data.get("ingredients")), "steps": [str(s) for s in (data.get("steps") or []) if str(s).strip()],
+                       "tags": list({*[str(t) for t in (data.get("tags") or [])], "Chef AI"})}}
 
 @api_router.post("/ai/weekly-plan")
 async def weekly_plan(body: WeeklyPlanBody, request: Request):

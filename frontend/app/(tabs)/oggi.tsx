@@ -43,6 +43,15 @@ const useStyles = makeStyles((c) => ({
   quickIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: c.brandTertiary, alignItems: "center", justifyContent: "center", marginBottom: spacing.sm },
   quickTitle: { fontWeight: "700", color: c.onSurface },
   quickSub: { color: c.muted, fontSize: 12, marginTop: 2 },
+  stats: { backgroundColor: c.surfaceInverse, borderRadius: radius.lg, padding: spacing.lg, marginBottom: spacing.xl },
+  statsHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.md },
+  statsTitle: { color: c.onSurfaceInverse, fontWeight: "700", fontSize: 15, flex: 1 },
+  statsMonth: { color: c.onSurfaceInverse, opacity: 0.7, fontSize: 12, textTransform: "capitalize" },
+  statsRow: { flexDirection: "row", gap: spacing.sm },
+  stat: { flex: 1, backgroundColor: "rgba(255,255,255,0.08)", borderRadius: radius.md, padding: spacing.md },
+  statVal: { color: c.onSurfaceInverse, fontWeight: "800", fontSize: 22 },
+  statLbl: { color: c.onSurfaceInverse, opacity: 0.75, fontSize: 11, marginTop: 2 },
+  statsFoot: { color: c.onSurfaceInverse, opacity: 0.8, fontSize: 12, marginTop: spacing.md, lineHeight: 17 },
 }));
 
 function greetingText() {
@@ -80,7 +89,11 @@ export default function Oggi() {
     queryKey: ["shopping"],
     queryFn: async () => (await api<{ items: any[] }>("/api/shopping")).items,
   });
-  const pull = usePullRefresh(() => Promise.all([mealsQ.refetch(), expiringQ.refetch(), shopQ.refetch()]));
+  const statsQ = useQuery({
+    queryKey: ["waste-stats"],
+    queryFn: () => api<{ month: string; recipes_cooked: number; items_used: number; items_saved: number; money_saved: number; expired_now: number }>("/api/stats/waste"),
+  });
+  const pull = usePullRefresh(() => Promise.all([mealsQ.refetch(), expiringQ.refetch(), shopQ.refetch(), statsQ.refetch()]));
 
   const expiring = useMemo(() => expiringQ.data || [], [expiringQ.data]);
   const expiringCount = expiring.length;
@@ -120,7 +133,7 @@ export default function Oggi() {
             <Text style={styles.kpiSub} numberOfLines={2}>
               {expiringCount === 0
                 ? "La dispensa è in ordine"
-                : expiring.slice(0, 3).map((i: any) => `${i.name}${i.days_left < 0 ? " (scaduto)" : i.days_left === 0 ? " (oggi)" : ` (${i.days_left}g)`}`).join(" · ") + (expiringCount > 3 ? ` +${expiringCount - 3}` : "")}
+                : Array.from(new Map(expiring.map((i: any) => [i.name, i])).values()).slice(0, 3).map((i: any) => `${i.name}${i.days_left < 0 ? " (scaduto)" : i.days_left === 0 ? " (oggi)" : ` (${i.days_left}g)`}`).join(" · ") + (expiringCount > 3 ? ` +${expiringCount - 3}` : "")}
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors.muted} />
@@ -159,6 +172,28 @@ export default function Oggi() {
             ))}
           </ScrollView>
         </View>
+
+        {statsQ.data && (
+          <View style={styles.stats} testID="waste-stats">
+            <View style={styles.statsHead}>
+              <Ionicons name="leaf" size={18} color={colors.brandPrimary} />
+              <Text style={styles.statsTitle}>Anti-spreco</Text>
+              <Text style={styles.statsMonth}>{new Date(statsQ.data.month + "-01T12:00:00").toLocaleDateString("it-IT", { month: "long", year: "numeric" })}</Text>
+            </View>
+            <View style={styles.statsRow}>
+              <View style={styles.stat}><Text style={styles.statVal} testID="stat-cooked">{statsQ.data.recipes_cooked}</Text><Text style={styles.statLbl}>ricette cucinate</Text></View>
+              <View style={styles.stat}><Text style={styles.statVal} testID="stat-saved">{statsQ.data.items_saved}</Text><Text style={styles.statLbl}>salvati dalla scadenza</Text></View>
+              <View style={styles.stat}><Text style={[styles.statVal, { color: colors.brandSecondary }]} testID="stat-money">{statsQ.data.money_saved.toFixed(2).replace(".", ",")} €</Text><Text style={styles.statLbl}>non sprecati</Text></View>
+            </View>
+            <Text style={styles.statsFoot}>
+              {statsQ.data.recipes_cooked === 0
+                ? "Segna le ricette con \"Cucinato!\" per scalare la dispensa e vedere qui i tuoi risparmi."
+                : statsQ.data.expired_now > 0
+                  ? `Ottimo lavoro! Occhio però: ${statsQ.data.expired_now} ${statsQ.data.expired_now === 1 ? "prodotto è già scaduto" : "prodotti sono già scaduti"} in dispensa.`
+                  : "Ottimo lavoro: nessun prodotto scaduto in dispensa!"}
+            </Text>
+          </View>
+        )}
 
         <View style={styles.section}>
           <View style={styles.sectionHead}><Text style={styles.sectionTitle}>Scorciatoie</Text></View>
