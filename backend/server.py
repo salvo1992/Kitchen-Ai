@@ -444,9 +444,14 @@ async def get_recipe(rid: str, request: Request):
 @api_router.patch("/recipes/{rid}")
 async def update_recipe(rid: str, request: Request, body: Dict[str, Any]):
     user = await get_user(request)
-    body.pop("_id", None); body.pop("id", None); body.pop("user_id", None); body.pop("household_id", None)
+    allowed = {"title", "description", "time_min", "servings", "tags", "image_url", "favorite", "ingredients", "steps", "rating", "notes"}
+    body = {k: v for k, v in body.items() if k in allowed}
     if "ingredients" in body:
         body["ingredients"] = norm_ingredients(body["ingredients"])
+    if body.get("rating") is not None:
+        body["rating"] = max(0, min(5, int(body["rating"])))
+    if not body:
+        raise HTTPException(400, "nessun campo valido")
     await db.recipes.update_one({"id": rid, **scope(user)}, {"$set": body})
     r = await db.recipes.find_one({"id": rid, **scope(user)}, {"_id": 0})
     return r

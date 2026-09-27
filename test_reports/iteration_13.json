@@ -1,0 +1,31 @@
+{
+  "summary": "Iteration 13 E2E for the untested UI batch: onboarding gate + persistence, Rivedi tour, Spesa aisles/emoji + aisle-order screen, Dispensa emoji, Recipe rating/notes (backend + grid indicator), Oggi colorful shortcuts. Backend: 3/3 recipe PATCH rating/notes tests passed. Frontend: all critical flows verified in mobile web preview (390x844). No deprecated packages (expo-av/barcode-scanner/background-fetch) detected.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_recipe_notes.py",
+    "/app/test_reports/pytest/pytest_iter13.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py PATCH /api/recipes/{rid} accepts arbitrary keys via Dict[str, Any] and blindly $sets them. Currently exploited (intentionally) for rating/notes, but this permits clients to write unlisted fields (e.g. custom flags) on recipe docs. Consider a Pydantic model whitelist (title/description/time_min/servings/tags/image_url/favorite/ingredients/steps/rating/notes) similar to the meal PATCH allowlist at server.py:728.",
+    "server.py:445 update_recipe pops _id/id/user_id/household_id but doesn't validate rating range (0-5) or notes length. Non-critical since UI enforces 1-5, but backend should clamp to avoid bad data from other clients."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_recipe_notes.py (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "One TEST_NotesRecipe was created + deleted per pytest fixture. UI test added latte/mele/detersivo shopping items and TEST_Pomodori pantry item (left in DB for regression).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Verified in iter13 (do NOT retest): onboarding.tsx (3 slides + persistence + Rivedi tour), aisle-order.tsx (arrow-based reorder works on web; drag long-press correctly disabled on web per code), Spesa aisle grouping w/ category emoji, Dispensa category emoji, RecipeNotes PATCH rating/notes end-to-end (grid shows ★ N indicator), Oggi 6 colorful shortcuts (quick-plan/scan/cook/list/import/recipe). Backend PATCH /api/recipes/{id} accepts rating (int|null) and notes (string) and returns updated doc. Login uses testIDs auth-email-input/auth-password-input/auth-submit-btn. Auth signin returns {session_token, user}, not {token}.",
+  "rca_of_issue": "N/A — no bugs found. Detailed E2E findings: 1) Fresh login → /onboarding, all 3 slides (dispensa/chef/famiglia) render with testIDs, 'Avanti' × 3 → landed on /oggi. 2) Full reload does not re-show onboarding (persisted flag OK). 3) Impostazioni → 'Rivedi tour' (testID settings-tour) resets flag and re-opens onboarding. 4) Spesa: added latte, mele, detersivo → grouped under Latticini/Frutta e verdura/Casa & igiene headers with emoji; aisle-order-btn opens aisle-order screen listing all 8 aisles (aisle-row-0..7); arrow reorder (aisle-down-0) swaps rows and persists via AsyncStorage. 5) Dispensa: TEST_Pomodori added, category emoji renders (🥦 verdura). 6) Recipe grid shows '★ 4' rating indicator on previously rated recipes (persistence proven). 7) Oggi renders with all 6 shortcut testIDs present, no runtime errors. 8) Backend pytest 3/3 for POST/PATCH/GET rating+notes round-trip + list projection."
+}

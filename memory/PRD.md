@@ -90,3 +90,13 @@ Frontend: EXPO_PUBLIC_BACKEND_URL
 - Slot `spuntino` ovunque (backend SLOTS, piano AI 28 pasti, Oggi)
 - Dispensa: sezioni Casa (`home`) e Usa e getta (`disposable`) anche nello scanner
 - Spesa: "Presi → Dispensa" (`ToPantrySheet` + `DatePicker` inline): scadenza/prezzo/quantità/posizione per ogni preso → POST /shopping/to-pantry (top-up se stesso prodotto senza scadenza)
+
+## Versioning (iteration_12)
+- app.json: version 1.0.2, android.versionCode 3, ios.buildNumber 3. Incrementare versionCode/buildNumber a ogni nuova build; package definitivo com.smartkitchenai.app (la vecchia app com.emergent.appbuilder.caeb4l va disinstallata)
+
+## UI batch verificato (iteration_13)
+- Onboarding 3 schermate + gate post-login + "Rivedi il tour" in Impostazioni: E2E OK.
+- Spesa per corsie con emoji/colori; schermata ordine corsie (frecce su web, drag su device) con persistenza locale: OK.
+- Dispensa con emoji categoria; Ricette con note personali + voto 1-5 stelle e indicatore in griglia: OK (pytest 3/3 su PATCH /api/recipes/{id}).
+- Hardening: PATCH /api/recipes/{id} ora accetta solo campi allowlist e clampa rating 0..5.
+- Pendenti lato utente: nuova Publish → build Android (v1.0.2 / versionCode 3) e verifica deploy (/api/health 200).

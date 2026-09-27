@@ -1,0 +1,26 @@
+{
+  "summary": "Config-only verification of /app/frontend/app.json for Android APK update issue. All three checks passed: (1) Static JSON is valid; expo.version='1.0.2', expo.android.versionCode=3 (int), expo.ios.buildNumber='3' (str), expo.android.package='com.smartkitchenai.app', expo.ios.bundleIdentifier='com.smartkitchenai.app'. (2) `npx expo config --type public --json` resolves without error and returns the same values (SDK 57.0.0). (3) Smoke: Expo web preview loads, login with chef@cucina.ai / CucinaSmart2026 succeeds (routes /login -> /onboarding), onboarding-skip testID works and lands on /oggi home. app.json change does not break the bundle. NOTE: native APK cannot be built here; version bump correctness for Play Store install-over-update can only be validated end-to-end via an actual Android build.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_12.json"],
+  "action_items": [
+    "After Android APK 1.0.2 (versionCode 3) is built, install it on top of the previously-installed 1.0.1 APK (same package com.smartkitchenai.app) to verify update-over-install works. If user still had the old com.emergent.appbuilder.caeb4l package installed, they must uninstall it first because it is a different application id.",
+    "Consider adding a runtime version display (e.g., Constants.expoConfig.version) in Settings/About screen so QA can visually confirm which version is installed without adb."
+  ],
+  "critical_code_review_comments": [
+    "app.json version bump is correct: versionCode 3 > 2 (previous 1.0.1 build) satisfies Android's monotonic-increase requirement.",
+    "iOS buildNumber correctly kept as a string ('3') per Expo schema; Android versionCode correctly an integer (3)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only run)", "frontend": "100%"},
+  "seed_data_creation": "None - used existing chef@cucina.ai / CucinaSmart2026 credentials from /app/memory/test_credentials.md",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "app.json now has version 1.0.2, android.versionCode 3, ios.buildNumber '3', package/bundleId 'com.smartkitchenai.app'. Web preview + login + onboarding-skip flow confirmed working after the config change. The install-over-update behavior itself must be verified on device after a fresh EAS/local Android build (out of scope for this sandbox).",
+  "rca_of_issue": "Original bug: new APK build (1.0.1) did not update the installed app. Two root causes were addressed by main agent: (a) missing/unincremented android.versionCode - Android requires strictly increasing versionCode to allow install-over-update; (b) applicationId change (com.emergent.appbuilder.caeb4l -> com.smartkitchenai.app) which makes the new APK a separate application from Android's perspective, so it installs alongside instead of replacing. Fix: app.json now sets version 1.0.2, versionCode 3, buildNumber '3', and unifies package/bundleId as com.smartkitchenai.app. Verified statically and via expo config. Final on-device validation requires a real Android build."
+}
