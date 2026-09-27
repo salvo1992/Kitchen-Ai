@@ -721,6 +721,64 @@ async def delete_meal(mid: str, request: Request):
     await db.meals.delete_one({"id": mid, **scope(user)})
     return {"ok": True}
 
+@api_router.patch("/meals/{mid}")
+async def update_meal(mid: str, request: Request, body: Dict[str, Any]):
+    """Change a planned meal (title / recipe_id / notes / slot)."""
+    user = await get_user(request)
+    allowed = {k: v for k, v in body.items() if k in {"title", "recipe_id", "notes", "slot", "date"}}
+    if "slot" in allowed and allowed["slot"] not in SLOTS:
+        raise HTTPException(400, "slot non valido")
+    if allowed.get("recipe_id"):
+        r = await db.recipes.find_one({"id": allowed["recipe_id"], **scope(user)}, {"_id": 0, "title": 1})
+        if not r:
+            raise HTTPException(404, "ricetta non trovata")
+        allowed.setdefault("title", r["title"])
+    if not allowed:
+        raise HTTPException(400, "nessun campo da aggiornare")
+    res = await db.meals.update_one({"id": mid, **scope(user)}, {"$set": allowed})
+    if res.matched_count == 0:
+        raise HTTPException(404, "pasto non trovato")
+    return await db.meals.find_one({"id": mid}, {"_id": 0})
+
+class ToPantryItem(BaseModel):
+    id: str
+    expires_at: Optional[str] = None
+    price: Optional[float] = None
+    location: str = "pantry"
+
+class ToPantryBody(BaseModel):
+    items: List[ToPantryItem]
+
+@api_router.post("/shopping/to-pantry")
+async def shopping_to_pantry(body: ToPantryBody, request: Request):
+    """Move checked shopping items into the pantry with expiry/price, then remove them from the list."""
+    user = await get_user(request)
+    now = datetime.now(timezone.utc)
+    created, removed = [], 0
+    for it in body.items:
+        s = await db.shopping.find_one({"id": it.id, **scope(user)}, {"_id": 0})
+        if not s:
+            continue
+        existing = await db.pantry.find_one({**scope(user), "location": it.location, "name": {"$regex": f"^{re.escape(s['name'])}$", "$options": "i"}, "unit": s.get("unit", "pz")}, {"_id": 0})
+        if existing and not it.expires_at:
+            # same product, same unit, no new expiry: just top up quantity
+            new_qty = _fmt_qty(float(existing.get("qty") or 0) + float(s.get("qty") or 1))
+            upd = {"qty": new_qty}
+            if it.price is not None:
+                upd["price"] = it.price
+            await db.pantry.update_one({"id": existing["id"]}, {"$set": upd})
+            created.append({**existing, **upd})
+        else:
+            doc = {"id": f"pan_{uuid.uuid4().hex[:12]}", "name": s["name"], "qty": s.get("qty") or 1, "unit": s.get("unit") or "pz",
+                   "location": it.location, "expires_at": it.expires_at or None, "price": it.price, "barcode": None, "image_url": None,
+                   "created_at": now, **owned(user)}
+            await db.pantry.insert_one(doc)
+            doc.pop("_id", None)
+            created.append(doc)
+        await db.shopping.delete_one({"id": it.id})
+        removed += 1
+    return {"added": created, "removed": removed}
+
 def _fmt_qty(q):
     if isinstance(q, float) and q == int(q):
         return int(q)
@@ -909,7 +967,7 @@ async def what_can_i_cook(request: Request, body: CookBody):
                     "tags": [str(t) for t in (r.get("tags") or [])]})
     return {"suggestions": out}
 
-SLOTS = ["colazione", "pranzo", "cena"]
+SLOTS = ["colazione", "pranzo", "cena", "spuntino"]
 
 @api_router.post("/ai/recipe")
 async def ai_recipe(body: AiRecipeBody, request: Request):
@@ -956,14 +1014,14 @@ async def weekly_plan(body: WeeklyPlanBody, request: Request):
     ing_list = [f"{i['name']} ({i.get('qty', '')} {i.get('unit', '')})".strip() for i in items]
     prefs = f" Preferenze dell'utente: {body.preferences}." if body.preferences else ""
     prompt = (
-        f"Crea un piano pasti di 7 giorni (colazione, pranzo, cena) per le date {', '.join(dates)}. "
+        f"Crea un piano pasti di 7 giorni (colazione, pranzo, cena e uno spuntino leggero) per le date {', '.join(dates)}. "
         f"Ingredienti già disponibili in casa: {', '.join(ing_list) if ing_list else 'nessuno'}. "
         "Usa il più possibile gli ingredienti disponibili, riducendo gli sprechi, e varia i piatti; cucina italiana casalinga, colazioni semplici."
         f"{prefs} "
         "Rispondi SOLO con JSON valido con schema: "
-        '{"days":[{"date":"YYYY-MM-DD","meals":[{"slot":"colazione|pranzo|cena","recipe":{"title":"..","description":"..","time_min":20,"servings":2,'
+        '{"days":[{"date":"YYYY-MM-DD","meals":[{"slot":"colazione|pranzo|cena|spuntino","recipe":{"title":"..","description":"..","time_min":20,"servings":2,'
         '"ingredients":[{"name":"..","qty":1,"unit":"g"}],"steps":["..",".."],"tags":[".."]}}]}]}. '
-        "Ogni ricetta deve avere ingredienti completi con qty numerica (per 'quanto basta' usa qty 1 e unit \"q.b.\") e 2-5 passaggi brevi. Nessun testo fuori dal JSON."
+        "Ogni ricetta deve avere ingredienti completi con qty numerica (per 'quanto basta' usa qty 1 e unit \"q.b.\") e 2-5 passaggi brevi (per lo spuntino 1-2 passaggi). Nessun testo fuori dal JSON."
     )
     chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"plan_{user['user_id']}_{uuid.uuid4().hex[:6]}", system_message=_chef_system_prompt()).with_model("gemini", "gemini-3-flash-preview")
     try:

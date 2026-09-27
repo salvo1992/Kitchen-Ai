@@ -14,8 +14,8 @@ const useStyles = makeStyles((c) => ({
   header: { paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
   title: { fontSize: 26, fontWeight: "700", color: c.onSurface, letterSpacing: -0.5 },
   sub: { color: c.muted, marginTop: 2 },
-  tabsRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md, backgroundColor: c.surfaceSecondary, padding: 4, borderRadius: radius.pill },
-  tab: { flex: 1, paddingVertical: 10, borderRadius: radius.pill, alignItems: "center" },
+  tabsRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md, paddingVertical: 4 },
+  tab: { paddingVertical: 10, borderRadius: radius.pill, alignItems: "center", backgroundColor: c.surfaceSecondary },
   tabActive: { backgroundColor: c.surface, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
   tabTxt: { color: c.muted, fontWeight: "600", fontSize: 13 },
   tabTxtActive: { color: c.onSurface },
@@ -46,6 +46,8 @@ const LOCATIONS = [
   { key: "pantry", label: "Dispensa", icon: "cube-outline" },
   { key: "fridge", label: "Frigo", icon: "snow-outline" },
   { key: "freezer", label: "Freezer", icon: "ice-cream-outline" },
+  { key: "home", label: "Casa", icon: "home-outline" },
+  { key: "disposable", label: "Usa e getta", icon: "trash-bin-outline" },
 ];
 
 function daysUntil(dateStr?: string) {
@@ -61,7 +63,7 @@ export default function Dispensa() {
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   const router = useRouter();
-  const [tab, setTab] = useState<"pantry" | "fridge" | "freezer">("pantry");
+  const [tab, setTab] = useState<string>("pantry");
   const [showAdd, setShowAdd] = useState(false);
   const [name, setName] = useState("");
   const [qty, setQty] = useState("1");
@@ -129,13 +131,14 @@ export default function Dispensa() {
         <View style={styles.header}>
           <Text style={styles.title}>Dispensa</Text>
           <Text style={styles.sub}>Cosa hai e cosa consumare prima</Text>
-          <View style={styles.tabsRow}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsRow}>
             {LOCATIONS.map((l) => (
-              <Pressable key={l.key} testID={`loc-tab-${l.key}`} onPress={() => setTab(l.key as any)} style={[styles.tab, tab === l.key && styles.tabActive]}>
+              <Pressable key={l.key} testID={`loc-tab-${l.key}`} onPress={() => setTab(l.key)} style={[styles.tab, { flexDirection: "row", gap: 6, paddingHorizontal: spacing.md }, tab === l.key && styles.tabActive]}>
+                <Ionicons name={l.icon as any} size={14} color={tab === l.key ? colors.onBrandPrimary : colors.onSurface} />
                 <Text style={[styles.tabTxt, tab === l.key && styles.tabTxtActive]}>{l.label}</Text>
               </Pressable>
             ))}
-          </View>
+          </ScrollView>
         </View>
       </View>
 

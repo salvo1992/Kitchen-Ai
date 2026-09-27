@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { View, Text, Pressable, TextInput, ActivityIndicator } from "react-native";
 import Ionicons from "@react-native-vector-icons/ionicons";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -26,7 +26,6 @@ export function RecipeNotes({ recipeId, rating, notes, highlight }: { recipeId: 
   const [stars, setStars] = useState(rating || 0);
   const [text, setText] = useState(notes || "");
   const [savedAt, setSavedAt] = useState<number | null>(null);
-  useEffect(() => { setStars(rating || 0); setText(notes || ""); }, [rating, notes]);
 
   const saveM = useMutation({
     mutationFn: (b: { rating: number | null; notes: string }) => api(`/api/recipes/${recipeId}`, { method: "PATCH", body: JSON.stringify(b) }),

@@ -216,7 +216,7 @@ export default function RecipeDetail() {
             </View>
           )}
           {cookedM.isError && <Text style={{ color: colors.error, marginTop: spacing.sm }}>Errore, riprova</Text>}
-          <RecipeNotes recipeId={r.id} rating={r.rating} notes={r.notes} highlight={!!cookedM.data} />
+          <RecipeNotes key={`${r.rating ?? 0}|${r.notes ?? ""}`} recipeId={r.id} rating={r.rating} notes={r.notes} highlight={!!cookedM.data} />
         </View>
       </ScrollView>
     </View>

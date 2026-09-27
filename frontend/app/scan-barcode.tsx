@@ -42,6 +42,8 @@ const LOCATIONS = [
   { key: "pantry", label: "Dispensa" },
   { key: "fridge", label: "Frigo" },
   { key: "freezer", label: "Freezer" },
+  { key: "home", label: "Casa" },
+  { key: "disposable", label: "Usa e getta" },
 ];
 
 type Product = { found: boolean; barcode: string; name?: string; brand?: string; image_url?: string | null; qty?: number; unit?: string; location?: string };
@@ -191,9 +193,9 @@ export default function ScanBarcode() {
                   </View>
                 </View>
                 <Text style={styles.label}>Dove lo metti?</Text>
-                <View style={styles.row}>
+                <View style={[styles.row, { flexWrap: "wrap" }]}>
                   {LOCATIONS.map((l) => (
-                    <Pressable key={l.key} testID={`scan-loc-${l.key}`} onPress={() => setLocation(l.key)} style={[styles.locChip, location === l.key && styles.locChipActive]}>
+                    <Pressable key={l.key} testID={`scan-loc-${l.key}`} onPress={() => setLocation(l.key)} style={[styles.locChip, { flexBasis: "30%" }, location === l.key && styles.locChipActive]}>
                       <Text style={styles.locTxt}>{l.label}</Text>
                     </Pressable>
                   ))}

@@ -3,8 +3,9 @@ import Ionicons from "@react-native-vector-icons/ionicons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { api } from "@/src/api";
+import { MealEditor, ALL_SLOTS, SLOT_ICON, SLOT_LABEL } from "@/src/components/MealEditor";
 import { makeStyles, useTheme, spacing, radius } from "@/src/theme";
 
 const useStyles = makeStyles((c) => ({
@@ -48,6 +49,7 @@ export default function Calendar() {
   const weekEnd = ymd(days[6]);
   const weekRecipeMeals = (q.data || []).filter((m: any) => m.recipe_id && m.date <= weekEnd).length;
   const qc = useQueryClient();
+  const [editing, setEditing] = useState<{ date: string; slot: string; meal?: any } | null>(null);
   const shopM = useMutation({
     mutationFn: () => api<{ added: any[]; in_pantry: string[]; already_listed: string[] }>("/api/meals/to-shopping", { method: "POST", body: JSON.stringify({ start: startStr, end: weekEnd }) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["shopping"] }),
@@ -87,21 +89,48 @@ export default function Calendar() {
           const key = ymd(d);
           const meals = grouped[key] || [];
           return (
-            <Pressable key={key} testID={`day-${key}`} onPress={() => router.push({ pathname: "/add-meal", params: { date: key } })}>
-              <View style={styles.day}>
-                <Text style={styles.dayLabel}>{DAY_NAMES[d.getDay()]} {d.getDate()}/{d.getMonth() + 1}</Text>
-                {meals.length === 0 && <Text style={{ color: colors.muted, fontStyle: "italic" }}>Tocca per aggiungere un pasto</Text>}
-                {meals.map((m) => (
-                  <Pressable key={m.id} testID={`meal-${m.id}`} style={styles.slotRow} onPress={() => m.recipe_id ? router.push({ pathname: "/recipe/[id]", params: { id: m.recipe_id } }) : router.push({ pathname: "/add-meal", params: { date: key } })}>
-                    <Text style={styles.slotLabel}>{m.slot}</Text>
-                    <Text style={[styles.slotTitle, m.recipe_id && { color: colors.brandPrimary }]} numberOfLines={1}>{m.title}{m.recipe_id ? " ›" : ""}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            </Pressable>
+            <View key={key} testID={`day-${key}`} style={styles.day}>
+              <Text style={styles.dayLabel}>{DAY_NAMES[d.getDay()]} {d.getDate()}/{d.getMonth() + 1}</Text>
+              {ALL_SLOTS.map((slot) => {
+                const m = meals.find((x: any) => x.slot === slot);
+                return (
+                  <View key={slot} style={[styles.slotRow, { alignItems: "center", gap: spacing.sm }]}>
+                    <Ionicons name={SLOT_ICON[slot] as any} size={14} color={m ? colors.brandPrimary : colors.muted} />
+                    <Text style={[styles.slotLabel, { width: 72 }]}>{SLOT_LABEL[slot]}</Text>
+                    <Pressable testID={m ? `meal-${m.id}` : `empty-${key}-${slot}`} style={{ flex: 1 }} onPress={() => m?.recipe_id ? router.push({ pathname: "/recipe/[id]", params: { id: m.recipe_id } }) : setEditing({ date: key, slot, meal: m })}>
+                      <Text style={[styles.slotTitle, m?.recipe_id && { color: colors.brandPrimary }, !m && { color: colors.muted, fontStyle: "italic", fontWeight: "400" }]} numberOfLines={1}>{m ? `${m.title}${m.recipe_id ? " ›" : ""}` : "aggiungi…"}</Text>
+                    </Pressable>
+                    <Pressable testID={`edit-${key}-${slot}`} onPress={() => setEditing({ date: key, slot, meal: m })} style={{ padding: 4 }}>
+                      <Ionicons name={m ? "create-outline" : "add-circle-outline"} size={18} color={colors.brandSecondary} />
+                    </Pressable>
+                  </View>
+                );
+              })}
+            </View>
           );
         })}
       </ScrollView>
+      {editing && (
+        <MealEditor
+          visible
+          date={editing.date}
+          slot={editing.slot}
+          currentTitle={editing.meal?.title}
+          onClose={() => setEditing(null)}
+          onPick={async (p) => {
+            let recipe_id = p.recipe_id;
+            if (!recipe_id && p.recipe) {
+              const created = await api<any>("/api/recipes", { method: "POST", body: JSON.stringify(p.recipe) });
+              recipe_id = created.id;
+              qc.invalidateQueries({ queryKey: ["recipes"] });
+            }
+            if (editing.meal) await api(`/api/meals/${editing.meal.id}`, { method: "PATCH", body: JSON.stringify({ title: p.title, recipe_id: recipe_id || null }) });
+            else await api("/api/meals", { method: "POST", body: JSON.stringify({ date: editing.date, slot: editing.slot, title: p.title, recipe_id: recipe_id || null, notes: "" }) });
+            qc.invalidateQueries({ queryKey: ["meals"] });
+          }}
+          onRemove={editing.meal ? async () => { await api(`/api/meals/${editing.meal.id}`, { method: "DELETE" }); qc.invalidateQueries({ queryKey: ["meals"] }); } : undefined}
+        />
+      )}
     </View>
   );
 }

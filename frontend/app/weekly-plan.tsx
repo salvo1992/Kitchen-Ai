@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { api } from "@/src/api";
+import { MealEditor, SLOT_ICON, ALL_SLOTS } from "@/src/components/MealEditor";
 import { makeStyles, useTheme, spacing, radius } from "@/src/theme";
 
 const useStyles = makeStyles((c) => ({
@@ -32,7 +33,6 @@ const useStyles = makeStyles((c) => ({
   errorTxt: { color: c.error, textAlign: "center", marginTop: spacing.md, paddingHorizontal: spacing.lg },
 }));
 
-const SLOT_ICON: Record<string, string> = { colazione: "cafe-outline", pranzo: "sunny-outline", cena: "moon-outline" };
 const DAY_NAMES = ["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"];
 
 type Plan = { start_date: string; end_date: string; days: { date: string; meals: { slot: string; recipe: any }[] }[] };
@@ -51,6 +51,7 @@ export default function WeeklyPlan() {
   const [prefs, setPrefs] = useState("");
   const [plan, setPlan] = useState<Plan | null>(null);
   const [saved, setSaved] = useState<{ recipes_created: number; meals_created: number } | null>(null);
+  const [editing, setEditing] = useState<{ date: string; slot: string } | null>(null);
 
   const genM = useMutation({
     mutationFn: () => api<Plan>("/api/ai/weekly-plan", { method: "POST", body: JSON.stringify({ preferences: prefs }) }),
@@ -93,8 +94,8 @@ export default function WeeklyPlan() {
         {!plan && (
           <View style={styles.hero}>
             <View style={styles.heroIcon}><Ionicons name="calendar" size={36} color={colors.brandPrimary} /></View>
-            <Text style={styles.heroTitle}>7 giorni, 21 pasti, zero sprechi</Text>
-            <Text style={styles.heroSub}>Chef AI legge la tua dispensa e crea colazione, pranzo e cena per la settimana. Ogni piatto viene salvato come ricetta con ingredienti e passaggi.</Text>
+            <Text style={styles.heroTitle}>7 giorni, 28 pasti, zero sprechi</Text>
+            <Text style={styles.heroSub}>Chef AI legge la tua dispensa e crea colazione, pranzo, cena e spuntino per la settimana; poi puoi cambiare ogni pasto come vuoi. Ogni piatto viene salvato come ricetta con ingredienti e passaggi.</Text>
             <TextInput testID="plan-prefs" placeholder="Preferenze (es. vegetariano, veloce, senza glutine)" placeholderTextColor={colors.muted} value={prefs} onChangeText={setPrefs} style={styles.input} />
             <Pressable testID="generate-plan" onPress={() => genM.mutate()} style={styles.btn} disabled={genM.isPending}>
               {genM.isPending ? <><ActivityIndicator color={colors.onBrandPrimary} /><Text style={styles.btnTxt}>Sto cucinando il piano… (~20s)</Text></> : <><Ionicons name="sparkles" size={18} color={colors.onBrandPrimary} /><Text style={styles.btnTxt}>Genera il piano</Text></>}
@@ -112,25 +113,49 @@ export default function WeeklyPlan() {
                 <Text style={{ color: colors.brandPrimary, fontWeight: "700", fontSize: 13 }}>Rigenera</Text>
               </Pressable>
             </View>
+            {!saved && <Text style={{ color: colors.muted, fontSize: 12, paddingHorizontal: spacing.lg, marginBottom: spacing.sm }}>Tocca un pasto per cambiarlo con Chef AI o dal ricettario.</Text>}
             {plan.days.map((d) => (
               <View key={d.date} style={styles.day} testID={`plan-day-${d.date}`}>
                 <Text style={styles.dayLabel}>{dayLabel(d.date)}</Text>
-                {d.meals.map((m) => (
-                  <View key={m.slot} style={styles.meal}>
-                    <View style={styles.slotIcon}><Ionicons name={(SLOT_ICON[m.slot] || "restaurant-outline") as any} size={16} color={colors.brandPrimary} /></View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.slot}>{m.slot}</Text>
-                      <Text style={styles.mealTitle}>{m.recipe.title}</Text>
-                      <Text style={styles.mealMeta}>⏱ {m.recipe.time_min} min · {m.recipe.ingredients?.length || 0} ingredienti</Text>
-                    </View>
-                  </View>
-                ))}
+                {ALL_SLOTS.map((slot) => {
+                  const m = d.meals.find((x) => x.slot === slot);
+                  return (
+                    <Pressable key={slot} testID={`plan-meal-${d.date}-${slot}`} style={styles.meal} onPress={() => !saved && setEditing({ date: d.date, slot })} disabled={!!saved}>
+                      <View style={styles.slotIcon}><Ionicons name={(SLOT_ICON[slot] || "restaurant-outline") as any} size={16} color={m ? colors.brandPrimary : colors.muted} /></View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.slot}>{slot}</Text>
+                        {m ? (
+                          <>
+                            <Text style={styles.mealTitle}>{m.recipe.title}</Text>
+                            <Text style={styles.mealMeta}>⏱ {m.recipe.time_min} min · {m.recipe.ingredients?.length || 0} ingredienti</Text>
+                          </>
+                        ) : <Text style={[styles.mealMeta, { fontStyle: "italic" }]}>nessuno · tocca per aggiungere</Text>}
+                      </View>
+                      {!saved && <Ionicons name={m ? "create-outline" : "add-circle-outline"} size={18} color={colors.brandSecondary} />}
+                    </Pressable>
+                  );
+                })}
               </View>
             ))}
           </>
         )}
       </ScrollView>
 
+      {editing && plan && (
+        <MealEditor
+          visible
+          date={editing.date}
+          slot={editing.slot}
+          currentTitle={plan.days.find((d) => d.date === editing.date)?.meals.find((m) => m.slot === editing.slot)?.recipe.title}
+          onClose={() => setEditing(null)}
+          onPick={async (p) => {
+            let recipe = p.recipe;
+            if (!recipe && p.recipe_id) recipe = await api<any>(`/api/recipes/${p.recipe_id}`);
+            setPlan((prev) => prev && ({ ...prev, days: prev.days.map((d) => d.date !== editing.date ? d : { ...d, meals: [...d.meals.filter((m) => m.slot !== editing.slot), { slot: editing.slot, recipe: { ...recipe, title: p.title } }].sort((a, b) => ALL_SLOTS.indexOf(a.slot) - ALL_SLOTS.indexOf(b.slot)) }) }));
+          }}
+          onRemove={() => setPlan((prev) => prev && ({ ...prev, days: prev.days.map((d) => d.date !== editing.date ? d : { ...d, meals: d.meals.filter((m) => m.slot !== editing.slot) }) }))}
+        />
+      )}
       {plan && (
         <View style={[styles.saveBar, { paddingBottom: insets.bottom + spacing.md }]}>
           {saved ? (

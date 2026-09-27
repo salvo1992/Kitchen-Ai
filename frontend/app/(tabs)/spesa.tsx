@@ -8,6 +8,7 @@ import { api } from "@/src/api";
 import { usePullRefresh } from "@/src/use-pull-refresh";
 import { useAisleOrder, AISLES } from "@/src/aisle-order";
 import { categorize, aisleCategory } from "@/src/categories";
+import { ToPantrySheet } from "@/src/components/ToPantrySheet";
 import { makeStyles, useTheme, spacing, radius } from "@/src/theme";
 import { useRouter, useFocusEffect } from "expo-router";
 
@@ -76,10 +77,6 @@ export default function Spesa() {
     mutationFn: (id: string) => api(`/api/shopping/${id}`, { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["shopping"] }),
   });
-  const clearChecked = useMutation({
-    mutationFn: () => api("/api/shopping/clear-checked", { method: "POST" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["shopping"] }),
-  });
 
   const grouped = useMemo(() => {
     const g: Record<string, any[]> = {};
@@ -106,6 +103,7 @@ export default function Spesa() {
 
   const totalChecked = (listQ.data || []).filter((x: any) => x.checked).length;
   const [copied, setCopied] = useState(false);
+  const [toPantry, setToPantry] = useState<any[] | null>(null);
 
   const buildText = () => {
     const lines: string[] = ["🛒 Lista della spesa – Smart Kitchen AI", ""];
@@ -160,9 +158,9 @@ export default function Spesa() {
               </>
             )}
             {totalChecked > 0 && (
-              <Pressable testID="clear-checked" style={styles.actionBtn} onPress={() => clearChecked.mutate()}>
+              <Pressable testID="clear-checked" style={styles.actionBtn} onPress={() => setToPantry((listQ.data || []).filter((x: any) => x.checked))}>
                 <Ionicons name="checkmark-done" size={16} color={colors.brandPrimary} />
-                <Text style={styles.actionTxt}>Rimuovi presi</Text>
+                <Text style={styles.actionTxt}>Presi → Dispensa</Text>
               </Pressable>
             )}
             <Pressable testID="aisle-order-btn" style={styles.actionBtn} onPress={() => router.push("/aisle-order")}>
@@ -250,6 +248,7 @@ export default function Spesa() {
           </Pressable>
         </KeyboardAvoidingView>
       </Modal>
+      {toPantry && <ToPantrySheet items={toPantry} onClose={() => setToPantry(null)} />}
     </View>
   );
 }

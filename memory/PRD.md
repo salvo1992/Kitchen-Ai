@@ -79,3 +79,14 @@ Frontend: EXPO_PUBLIC_BACKEND_URL
 
 ## Deploy fix (iteration_10)
 - Aggiunti `GET /health` e `GET /` a livello root (probe K8s/nginx senza /api); index/storage init in background task allo startup così la porta 8001 si apre subito
+
+## Feature aggiunte (iteration_11)
+- Icona/splash generate (Nano Banana) in assets/images; app.json adaptive bg #7A9B76, splash #F5EFE3
+- Onboarding 3 slide (`/onboarding`, flag AsyncStorage `smartkitchen_onboarding_done_v1`, store in `src/storage-keys.ts`), "Rivedi il tour" in Impostazioni
+- Categorie alimentari (`src/categories.ts`: emoji + colori) su Spesa (righe/corsie), Dispensa, ingredienti ricetta, scorciatoie Oggi
+- Ordine corsie (`/aisle-order`, draggable + frecce, AsyncStorage `smartkitchen_aisle_order_v1`) usato in Spesa e export
+- Note + rating 1-5 su ricetta (`RecipeNotes`, PATCH rating/notes), ★ in griglia
+- MealEditor (`src/components/MealEditor.tsx`): modifica pasto via Chef AI (preferenza → POST /ai/recipe → crea ricetta) o dal ricettario; in Calendario (4 slot/giorno incl. spuntino, PATCH/POST/DELETE meals) e nell'anteprima Piano AI
+- Slot `spuntino` ovunque (backend SLOTS, piano AI 28 pasti, Oggi)
+- Dispensa: sezioni Casa (`home`) e Usa e getta (`disposable`) anche nello scanner
+- Spesa: "Presi → Dispensa" (`ToPantrySheet` + `DatePicker` inline): scadenza/prezzo/quantità/posizione per ogni preso → POST /shopping/to-pantry (top-up se stesso prodotto senza scadenza)

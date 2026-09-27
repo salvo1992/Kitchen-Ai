@@ -1,0 +1,40 @@
+{
+  "summary": "Iteration 11: all backend and frontend flows for meal editing, to-pantry, dispensa 5 locations, aisle-ordering, onboarding tour and recipe rating/notes verified end-to-end. Backend suite (test_iter11_features.py) is 6/6 PASS (health test skipped only because external ingress routes /health to the frontend in the preview cluster; localhost:8001/health returns 200 {status:'ok'}). AI weekly-plan responded in ~10s and does include a 'spuntino' meal per day. Frontend flows on 390x844 mobile viewport: (1) fresh-browser login redirects to /onboarding, 3x Avanti lands on /oggi with week-strip; (2) /calendar shows 4 slots per day, edit-{date}-{slot} opens meal-editor with meal-tab-ai + meal-tab-book, picking a meal-book-{id} row fills the slot, reopening shows 'Rimuovi questo pasto' (meal-remove); (3) Dispensa exposes all 5 loc-tab-{pantry|fridge|freezer|home|disposable}; (4) Spesa 'Presi → Dispensa' (clear-checked) opens to-pantry-sheet with quick chips to-pantry-date-quick-{Nessuna,+3 giorni,+1 sett.,+2 sett.,+1 mese,+6 mesi} and per-day cells to-pantry-date-day-YYYY-MM-DD, price/qty inputs, loc chips, keep/skip/skip-all - saved item appeared in Dispensa Frigo tab with expiry 04/10/2026 and price 1,99€; (5) aisle-order-btn navigates to /aisle-order (8 aisles, up/down/reset present) and reorder persists on Spesa; (6) recipe detail: star-4 tap → rating-label 'Ottima', PATCH persists; grid card now shows '★ 4'; (7) Settings 'Rivedi il tour' (settings-tour) reopens onboarding and onboarding-skip closes it. No red-screen errors; console shows only two known noisy warnings (expo-notifications web + deprecated shadow*/pointerEvents style props) that are library-level, not app bugs.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "shadow* deprecation", "issue": "Some components still use deprecated shadow* style props instead of boxShadow (React Native web warning). Non-blocking. Reference: multiple StyleSheet.create calls across app."},
+      {"component": "pointerEvents deprecation", "issue": "props.pointerEvents is deprecated - migrate to style.pointerEvents. Non-blocking web-only warning."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter11_features.py",
+    "/app/test_reports/pytest/pytest_iter11.xml"
+  ],
+  "action_items": [
+    "Optional: silence RN web deprecation warnings by migrating shadow* → boxShadow and props.pointerEvents → style.pointerEvents in shared style modules.",
+    "Optional: also expose GET /health at /api/health so the external preview ingress can reach it (currently the internal K8s probe hits pod:8001/health which is fine)."
+  ],
+  "critical_code_review_comments": [
+    "server.py is 1246 lines - well above 700-line guideline; split into modules (auth, recipes, pantry, shopping, meals, ai, household, storage).",
+    "PATCH /api/meals correctly validates slot ∈ SLOTS and returns 404 for invalid recipe_id; PATCH /api/recipes accepts arbitrary Dict body (rating/notes not pydantic-validated) - low risk but consider a typed model.",
+    "shopping_to_pantry top-up path matches by name/unit/location and only when no new expiry - correctly avoids duplicate rows; verified with 2+3 → qty 5.",
+    "AI weekly-plan prompt requests 4 slots incl. spuntino and enforces SLOTS on parsed output - verified 'spuntino' appears in response."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter11_features.py (new)",
+    "/app/test_reports/pytest/pytest_iter11.xml (new)"
+  ],
+  "success_rate": {"backend": "100% (6/6 executed, 1 env-skipped)", "frontend": "100% of tested flows"},
+  "seed_data_creation": "One shopping row + top-up shopping row + pantry entry created and cleaned up in test_to_pantry_create_then_topup; one recipe created + deleted in test_patch_recipe_rating_notes_persists; 3 ephemeral meals created + deleted in TestMealPatch. Frontend flow also produced one persistent pantry item (TEST_Pomodori_urgent in Frigo, 1.99€, scade 04/10/2026) via the to-pantry sheet and rated one existing TEST recipe (rec_26d8c2feafee) to 4 stars.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Run backend with: EXPO_PUBLIC_BACKEND_URL=<preview> pytest backend/tests/test_iter11_features.py -v -n 0. AI weekly-plan call sometimes takes 20-40s; the test times out at 90s. Frontend flows require localStorage key 'smartkitchen_onboarding_done_v1'='1' to skip onboarding in subsequent tests; clear it to re-verify the tour. All new testIDs matched implementation: loc-tab-{key}, edit-{date}-{slot}, meal-editor, meal-tab-ai, meal-tab-book, meal-pref, meal-ai-generate, meal-ai-preview, meal-ai-use, meal-book-search, meal-book-{id}, meal-remove, clear-checked, to-pantry-sheet, to-pantry-date, to-pantry-date-quick-{label}, to-pantry-date-day-YYYY-MM-DD, to-pantry-price, to-pantry-qty, to-pantry-loc-{key}, to-pantry-keep, to-pantry-skip, to-pantry-skip-all, aisle-order-btn, aisle-up-{i}, aisle-down-{i}, aisle-reset, onboarding, onboarding-next, onboarding-skip, settings-tour, recipe-notes, star-{1..5}, rating-label, notes-input, notes-save, notes-saved. Recipe grid cards use testID recipe-{id} (not recipe-card-{id}).",
+  "rca_of_issue": "N/A - no defects found. All iter11 acceptance criteria pass on both API and UI layers."
+}

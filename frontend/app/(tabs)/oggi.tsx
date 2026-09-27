@@ -17,6 +17,7 @@ const HERO_IMAGES: Record<string, string> = {
   colazione: "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=800",
   pranzo: "https://images.pexels.com/photos/546945/pexels-photo-546945.jpeg?w=800",
   cena: "https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=800",
+  spuntino: "https://images.unsplash.com/photo-1490474418585-ba9bad8fd0ea?w=800",
 };
 
 const useStyles = makeStyles((c) => ({
@@ -115,7 +116,7 @@ export default function Oggi() {
     if (expiringQ.data) syncExpiryReminder(expiringQ.data).catch(() => {});
   }, [expiringQ.data]);
 
-  const slotsData = ["colazione", "pranzo", "cena"].map((slot) => {
+  const slotsData = ["colazione", "pranzo", "cena", "spuntino"].map((slot) => {
     const m = (mealsQ.data || []).find((x: any) => x.slot === slot && x.date === selDay);
     return { slot, meal: m };
   });
@@ -174,7 +175,7 @@ export default function Oggi() {
                   <Text style={[styles.dayName, active && { color: colors.onBrandPrimary }]}>{d === today ? "Oggi" : DAY_SHORT[dt.getDay()]}</Text>
                   <Text style={[styles.dayNum, active && { color: colors.onBrandPrimary }]}>{dt.getDate()}</Text>
                   <View style={styles.dots}>
-                    {[0, 1, 2].map((k) => <View key={k} style={[styles.dot, k < n ? { backgroundColor: active ? colors.onBrandPrimary : colors.brandSecondary } : { backgroundColor: active ? "rgba(255,255,255,0.3)" : colors.borderStrong }]} />)}
+                    {[0, 1, 2, 3].map((k) => <View key={k} style={[styles.dot, k < n ? { backgroundColor: active ? colors.onBrandPrimary : colors.brandSecondary } : { backgroundColor: active ? "rgba(255,255,255,0.3)" : colors.borderStrong }]} />)}
                   </View>
                 </Pressable>
               );
