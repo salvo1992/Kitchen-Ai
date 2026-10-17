@@ -1,0 +1,58 @@
+{
+  "summary": "Iteration 14 E2E: diet field on profile, per-member meals, household+diet, AI expiring-recipe, AI weekly-plan with member_plans, MealEditor 'Per chi?' selector, Family diet display, weekly-plan hero copy. Backend pytest 14/15 (93%) - one minor projection issue (members without a stored diet field are missing the key in GET /api/household response, spec asks 'members include diet field'). Frontend flows all working: expiring-recipe end-to-end (Chef AI generated Risotto anti-spreco from expiring pantry items, planned to cena with 'expiring-done' confirmation), DietEditor save/clear round-trip, Calendar MealEditor shows 'Per chi?' with Tutti + 2 member chips (Chef Test (tu), Nonna Test) and existing meals already show per-member tags (Tutti/Nonna Test), Family screen renders 2 members with invite code F22A21, weekly-plan hero mentions 'Chi in famiglia ha impostato una dieta riceve un menu separato'. AI weekly-plan test with nonna Vegana diet also passed (7 shared days + member_plans[nonna]; save created meals + GET /api/meals returned shared and personal). Deprecated packages: none. React Native issue detected: 'Unexpected text node: . A text node cannot be a child of a <View>' console warning on MealEditor screen — stray whitespace inside a <View>.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "GET /api/household",
+        "issue": "Members that have never set a diet do not include 'diet' key in the response object (Mongo projection only returns existing fields). Spec: 'GET /api/household members include diet field'. Frontend handles this fine via `m.diet || \"\"` but the shape is inconsistent. Fix in server.py:880 by adding a $ifNull aggregation or defaulting to null/empty string before returning."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "DietEditor sheet",
+        "issue": "On 390x844 viewport, the bottom sheet with 8 diet chips + input + save button + clear extends beyond screen height; 'diet-save' is rendered outside viewport and only reachable via keyboard-tab or dispatchEvent (Playwright refused normal click 'Element is outside of the viewport'). Real mobile users can dismiss+reopen or scroll page but the sheet content itself is not scrollable. Suggest wrapping sheet content in ScrollView or reducing top padding / smaller chip block.",
+        "testID": "diet-sheet",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "settings > DietEditor",
+        "issues": ["Sheet content overflows viewport on smaller phones; chips row + save button clipped by bottom edge until keyboard closes."]
+      }
+    ],
+    "react_native_issues": [
+      {
+        "component": "MealEditor / calendar screen",
+        "issue": "Console warning: 'Unexpected text node: . A text node cannot be a child of a <View>.' fires when opening MealEditor on /calendar. Likely a stray whitespace/`{ }` between View children in MealEditor.tsx (or the Colazione section header row on calendar.tsx). Reference: /app/frontend/src/components/MealEditor.tsx and /app/frontend/app/calendar.tsx"
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter14_features.py",
+    "/app/test_reports/pytest/pytest_iter14.xml"
+  ],
+  "action_items": [
+    "Backend server.py:880 - ensure 'diet' key is always present in members list of GET /api/household response (default to null/empty). Same for /api/auth/signup response user object (currently missing diet key entirely; signin already includes it).",
+    "Frontend DietEditor.tsx - wrap sheet inner content in ScrollView (or set maxHeight + scrolling) so 'diet-save' remains reachable on smaller screens.",
+    "Frontend MealEditor.tsx (and/or calendar.tsx) - find and remove the stray text node between <View> children causing the RN-web warning."
+  ],
+  "critical_code_review_comments": [
+    "server.py _generate_plan_days: raw_days iteration bounds by [:7] but uses `dates[min(idx,6)]` as fallback — if the LLM returns fewer than 7 days the plan will still be short; may want to pad with empty days to ensure UI 7-day grid stays consistent.",
+    "server.py weekly_plan asyncio.gather with return_exceptions=True — a failed member plan is caught and returned with days=[] + error, but the endpoint still returns 200 even if all member sub-plans failed. Consider surfacing partial failure to UI.",
+    "DietEditor.tsx: appending chip labels via ' , ' concatenation creates duplicates on multiple taps of the same chip (no dedupe). Minor UX polish."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter14_features.py (new)"
+  ],
+  "success_rate": {"backend": "93%", "frontend": "100%"},
+  "seed_data_creation": "Household 'Famiglia Chef' (invite F22A21) with chef@cucina.ai + nonna@cucina.ai. Added TEST_M14_Zucchine (expiring +2d) then deleted. AI weekly-plan saved meals for a 7-day range (retained; harmless). Nonna's diet reset to '' at end of tests.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Verified iter14 (do not retest): 1) PATCH /api/auth/profile diet set/clear + /me + signin includes diet. 2) POST /api/meals validates member_id (own → OK, invalid → 400, null → shared, PATCH member_id works, shared+personal in same slot coexist). 3) Household with nonna joined via invite (F22A21) - each member has 'diet' when set (missing key when unset — minor bug). 4) POST /api/ai/expiring-recipe returns recipe with tag 'anti-spreco' + used list; 400 with no expiring items. 5) POST /api/ai/weekly-plan returns 7 days + member_plans[]; save + GET /api/meals confirms shared (null member_id) + personal (nonna's user_id) meals stored. 6) POST /api/ai/recipe with member_id → 200. 7) Frontend DietEditor sheet works (viewport clip issue with chips/save on small screens — use dispatchEvent to test), Calendar edit-<date>-<slot> → MealEditor with meal-who + meal-who-all + meal-who-user_* chips, Family shows members list with diet line when diet set, weekly-plan hero mentions per-member menu. Chef account currently has an active weekly-plan for the current week (created during iter14 tests) — main agent may want to clear these if regenerating in a demo.",
+  "rca_of_issue": "N/A — no blocking bugs. Backend 14/15 pass; the single failure is projection-only (Mongo omits diet field when absent) not a functional bug. Frontend flows are functional; only DX/UX polish (sheet scroll, stray text node) reported."
+}

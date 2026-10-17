@@ -39,7 +39,7 @@ const useStyles = makeStyles((c) => ({
   liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: c.success },
 }));
 
-type HouseholdView = { household: { id: string; name: string; invite_code: string; owner_id: string; members: string[] } | null; members: { user_id: string; name?: string; email: string }[] };
+type HouseholdView = { household: { id: string; name: string; invite_code: string; owner_id: string; members: string[] } | null; members: { user_id: string; name?: string; email: string; diet?: string | null }[] };
 
 export default function Family() {
   const styles = useStyles();
@@ -134,6 +134,7 @@ export default function Family() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.memberName}>{m.name || m.email}</Text>
                     <Text style={styles.memberMail}>{m.email}</Text>
+                    {!!(m.diet || "").trim() && <Text style={[styles.memberMail, { color: colors.brandPrimary }]} numberOfLines={1}>🌿 Dieta: {m.diet}</Text>}
                   </View>
                   {m.user_id === user?.user_id && <Text style={styles.you}>TU</Text>}
                   {m.user_id === h.owner_id && <Ionicons name="star" size={14} color={colors.brandSecondary} />}

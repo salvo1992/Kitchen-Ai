@@ -5,6 +5,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { api } from "@/src/api";
+import { useAuth } from "@/src/auth";
+import { useMembers, memberLabel } from "@/src/use-members";
 import { MealEditor, ALL_SLOTS, SLOT_ICON, SLOT_LABEL } from "@/src/components/MealEditor";
 import { makeStyles, useTheme, spacing, radius } from "@/src/theme";
 
@@ -15,9 +17,14 @@ const useStyles = makeStyles((c) => ({
   back: { width: 36, height: 36, borderRadius: 18, backgroundColor: c.surfaceSecondary, alignItems: "center", justifyContent: "center" },
   day: { padding: spacing.lg, borderRadius: radius.lg, backgroundColor: c.surfaceSecondary, marginBottom: spacing.md, marginHorizontal: spacing.lg },
   dayLabel: { fontWeight: "700", color: c.onSurface, fontSize: 15, marginBottom: spacing.sm, textTransform: "capitalize" },
-  slotRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 6 },
-  slotLabel: { color: c.muted, textTransform: "capitalize" },
+  slotBlock: { paddingVertical: 4 },
+  slotHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  slotLabel: { color: c.muted, textTransform: "capitalize", width: 72 },
   slotTitle: { color: c.onSurface, fontWeight: "600", flex: 1, textAlign: "right", marginLeft: spacing.md },
+  mealLine: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingLeft: 22, paddingVertical: 3 },
+  whoTag: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 7, paddingVertical: 2, borderRadius: radius.pill, backgroundColor: c.surface },
+  whoTagPersonal: { backgroundColor: c.brandPrimary },
+  whoTagTxt: { color: c.muted, fontSize: 10, fontWeight: "700" },
   shopBar: { marginHorizontal: spacing.lg, marginBottom: spacing.md, backgroundColor: c.brandTertiary, borderRadius: radius.lg, padding: spacing.lg, gap: spacing.sm },
   shopBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, backgroundColor: c.brandPrimary, borderRadius: radius.pill, paddingVertical: 12 },
   shopBtnTxt: { color: c.onBrandPrimary, fontWeight: "700" },
@@ -49,7 +56,9 @@ export default function Calendar() {
   const weekEnd = ymd(days[6]);
   const weekRecipeMeals = (q.data || []).filter((m: any) => m.recipe_id && m.date <= weekEnd).length;
   const qc = useQueryClient();
-  const [editing, setEditing] = useState<{ date: string; slot: string; meal?: any } | null>(null);
+  const { user } = useAuth();
+  const { members, hasFamily } = useMembers();
+  const [editing, setEditing] = useState<{ date: string; slot: string; meal?: any; memberId: string | null } | null>(null);
   const shopM = useMutation({
     mutationFn: () => api<{ added: any[]; in_pantry: string[]; already_listed: string[] }>("/api/meals/to-shopping", { method: "POST", body: JSON.stringify({ start: startStr, end: weekEnd }) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["shopping"] }),
@@ -92,17 +101,40 @@ export default function Calendar() {
             <View key={key} testID={`day-${key}`} style={styles.day}>
               <Text style={styles.dayLabel}>{DAY_NAMES[d.getDay()]} {d.getDate()}/{d.getMonth() + 1}</Text>
               {ALL_SLOTS.map((slot) => {
-                const m = meals.find((x: any) => x.slot === slot);
+                const inSlot = meals.filter((x: any) => x.slot === slot).sort((a: any, b: any) => (a.member_id ? 1 : 0) - (b.member_id ? 1 : 0));
                 return (
-                  <View key={slot} style={[styles.slotRow, { alignItems: "center", gap: spacing.sm }]}>
-                    <Ionicons name={SLOT_ICON[slot] as any} size={14} color={m ? colors.brandPrimary : colors.muted} />
-                    <Text style={[styles.slotLabel, { width: 72 }]}>{SLOT_LABEL[slot]}</Text>
-                    <Pressable testID={m ? `meal-${m.id}` : `empty-${key}-${slot}`} style={{ flex: 1 }} onPress={() => m?.recipe_id ? router.push({ pathname: "/recipe/[id]", params: { id: m.recipe_id } }) : setEditing({ date: key, slot, meal: m })}>
-                      <Text style={[styles.slotTitle, m?.recipe_id && { color: colors.brandPrimary }, !m && { color: colors.muted, fontStyle: "italic", fontWeight: "400" }]} numberOfLines={1}>{m ? `${m.title}${m.recipe_id ? " ›" : ""}` : "aggiungi…"}</Text>
-                    </Pressable>
-                    <Pressable testID={`edit-${key}-${slot}`} onPress={() => setEditing({ date: key, slot, meal: m })} style={{ padding: 4 }}>
-                      <Ionicons name={m ? "create-outline" : "add-circle-outline"} size={18} color={colors.brandSecondary} />
-                    </Pressable>
+                  <View key={slot} style={styles.slotBlock}>
+                    <View style={styles.slotHead}>
+                      <Ionicons name={SLOT_ICON[slot] as any} size={14} color={inSlot.length ? colors.brandPrimary : colors.muted} />
+                      <Text style={styles.slotLabel}>{SLOT_LABEL[slot]}</Text>
+                      {inSlot.length === 0 && (
+                        <Pressable testID={`empty-${key}-${slot}`} style={{ flex: 1 }} onPress={() => setEditing({ date: key, slot, memberId: null })}>
+                          <Text style={[styles.slotTitle, { color: colors.muted, fontStyle: "italic", fontWeight: "400" }]}>aggiungi…</Text>
+                        </Pressable>
+                      )}
+                      <Pressable testID={`edit-${key}-${slot}`} onPress={() => setEditing({ date: key, slot, memberId: null })} style={{ padding: 4 }} hitSlop={6}>
+                        <Ionicons name="add-circle-outline" size={18} color={colors.brandSecondary} />
+                      </Pressable>
+                    </View>
+                    {inSlot.map((m: any) => {
+                      const mem = members.find((x) => x.user_id === m.member_id);
+                      return (
+                        <View key={m.id} style={styles.mealLine}>
+                          {hasFamily && (
+                            <View style={[styles.whoTag, m.member_id && styles.whoTagPersonal]}>
+                              <Ionicons name={m.member_id ? "person" : "people"} size={10} color={m.member_id ? colors.onBrandPrimary : colors.muted} />
+                              <Text style={[styles.whoTagTxt, m.member_id && { color: colors.onBrandPrimary }]}>{m.member_id ? memberLabel(mem, user?.user_id) : "Tutti"}</Text>
+                            </View>
+                          )}
+                          <Pressable testID={`meal-${m.id}`} style={{ flex: 1 }} onPress={() => m.recipe_id ? router.push({ pathname: "/recipe/[id]", params: { id: m.recipe_id } }) : setEditing({ date: key, slot, meal: m, memberId: m.member_id || null })}>
+                            <Text style={[styles.slotTitle, m.recipe_id && { color: colors.brandPrimary }]} numberOfLines={1}>{m.title}{m.recipe_id ? " ›" : ""}</Text>
+                          </Pressable>
+                          <Pressable testID={`edit-meal-${m.id}`} onPress={() => setEditing({ date: key, slot, meal: m, memberId: m.member_id || null })} style={{ padding: 4 }} hitSlop={6}>
+                            <Ionicons name="create-outline" size={16} color={colors.brandSecondary} />
+                          </Pressable>
+                        </View>
+                      );
+                    })}
                   </View>
                 );
               })}
@@ -116,6 +148,8 @@ export default function Calendar() {
           date={editing.date}
           slot={editing.slot}
           currentTitle={editing.meal?.title}
+          members={members}
+          memberId={editing.memberId}
           onClose={() => setEditing(null)}
           onPick={async (p) => {
             let recipe_id = p.recipe_id;
@@ -124,8 +158,8 @@ export default function Calendar() {
               recipe_id = created.id;
               qc.invalidateQueries({ queryKey: ["recipes"] });
             }
-            if (editing.meal) await api(`/api/meals/${editing.meal.id}`, { method: "PATCH", body: JSON.stringify({ title: p.title, recipe_id: recipe_id || null }) });
-            else await api("/api/meals", { method: "POST", body: JSON.stringify({ date: editing.date, slot: editing.slot, title: p.title, recipe_id: recipe_id || null, notes: "" }) });
+            if (editing.meal) await api(`/api/meals/${editing.meal.id}`, { method: "PATCH", body: JSON.stringify({ title: p.title, recipe_id: recipe_id || null, member_id: p.member_id }) });
+            else await api("/api/meals", { method: "POST", body: JSON.stringify({ date: editing.date, slot: editing.slot, title: p.title, recipe_id: recipe_id || null, notes: "", member_id: p.member_id }) });
             qc.invalidateQueries({ queryKey: ["meals"] });
           }}
           onRemove={editing.meal ? async () => { await api(`/api/meals/${editing.meal.id}`, { method: "DELETE" }); qc.invalidateQueries({ queryKey: ["meals"] }); } : undefined}

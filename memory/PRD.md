@@ -100,3 +100,9 @@ Frontend: EXPO_PUBLIC_BACKEND_URL
 - Dispensa con emoji categoria; Ricette con note personali + voto 1-5 stelle e indicatore in griglia: OK (pytest 3/3 su PATCH /api/recipes/{id}).
 - Hardening: PATCH /api/recipes/{id} ora accetta solo campi allowlist e clampa rating 0..5.
 - Pendenti lato utente: nuova Publish → build Android (v1.0.2 / versionCode 3) e verifica deploy (/api/health 200).
+
+## Feature aggiunte (iteration_14)
+- Dieta personale per membro (Impostazioni → "La mia dieta / preferenze", `users.diet`) usata da Chef AI solo per i pasti di quel membro.
+- Pasti per componente: `meals.member_id` (null = tutta la famiglia). Calendario mostra più pasti per slot con tag Tutti/nome; MealEditor ha "Per chi?"; Oggi mostra il pasto personale (se c'è) altrimenti quello comune.
+- Piano settimanale AI: piano comune + piano separato per ogni membro con dieta (`member_plans`), salvati con member_id.
+- Ricetta anti-spreco: card in Oggi "Salva ciò che sta per scadere" → POST /api/ai/expiring-recipe → salva ricetta e/o mette a pranzo/cena di oggi.

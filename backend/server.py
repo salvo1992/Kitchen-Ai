@@ -101,6 +101,7 @@ class CookedBody(BaseModel):
 
 class AiRecipeBody(BaseModel):
     query: str
+    member_id: Optional[str] = None  # se indicato, la ricetta rispetta la dieta di quel membro
 
 class ShoppingItemCreate(BaseModel):
     name: str
@@ -116,6 +117,11 @@ class MealCreate(BaseModel):
     title: str
     recipe_id: Optional[str] = None
     notes: Optional[str] = ""
+    member_id: Optional[str] = None  # None = per tutta la famiglia; user_id = solo per quel membro
+
+class ProfileBody(BaseModel):
+    name: Optional[str] = None
+    diet: Optional[str] = None  # "La mia dieta / preferenze"
 
 class ChatBody(BaseModel):
     message: str
@@ -134,6 +140,7 @@ class WeeklyPlanBody(BaseModel):
 class WeeklyPlanSaveBody(BaseModel):
     days: List[Dict[str, Any]]
     replace: bool = True
+    member_plans: List[Dict[str, Any]] = []  # [{member_id, days:[...]}] piani separati per chi segue una dieta
 
 class HouseholdCreateBody(BaseModel):
     name: str
@@ -308,7 +315,8 @@ async def signin(body: SignInBody):
     if not user or not user.get("password_hash") or not bcrypt.verify(body.password, user["password_hash"]):
         raise HTTPException(401, "credenziali non valide")
     token = await create_session(user["user_id"])
-    return {"session_token": token, "user": {"user_id": user["user_id"], "email": user["email"], "name": user.get("name"), "picture": user.get("picture")}}
+    return {"session_token": token, "user": {"user_id": user["user_id"], "email": user["email"], "name": user.get("name"), "picture": user.get("picture"),
+                                             "household_id": user.get("household_id"), "diet": user.get("diet")}}
 
 @api_router.post("/auth/session")
 async def exchange_session(body: SessionExchangeBody):
@@ -338,12 +346,27 @@ async def exchange_session(body: SessionExchangeBody):
         "session_token": emergent_token, "user_id": uid,
         "created_at": datetime.now(timezone.utc), "expires_at": expires,
     })
-    return {"session_token": emergent_token, "user": {"user_id": uid, "email": email, "name": name, "picture": picture}}
+    return {"session_token": emergent_token, "user": {"user_id": uid, "email": email, "name": name, "picture": picture,
+                                                      "household_id": (existing or {}).get("household_id"), "diet": (existing or {}).get("diet")}}
 
 @api_router.get("/auth/me")
 async def auth_me(request: Request):
     user = await get_user(request)
     return {"user": user}
+
+@api_router.patch("/auth/profile")
+async def update_profile(body: ProfileBody, request: Request):
+    """Update name and/or personal diet ("La mia dieta / preferenze") used by Chef AI for this member's meals."""
+    user = await get_user(request)
+    upd: Dict[str, Any] = {}
+    if body.name is not None and body.name.strip():
+        upd["name"] = body.name.strip()
+    if body.diet is not None:
+        upd["diet"] = body.diet.strip()[:600]
+    if not upd:
+        raise HTTPException(400, "nessun campo da aggiornare")
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": upd})
+    return {"user": await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0, "password_hash": 0})}
 
 @api_router.delete("/auth/account")
 async def delete_account(request: Request):
@@ -709,10 +732,26 @@ async def list_meals(request: Request, start: Optional[str] = None, end: Optiona
     items = await db.meals.find(q, {"_id": 0}).sort("date", 1).to_list(1000)
     return {"items": items}
 
+async def _valid_member(user: dict, member_id: Optional[str]) -> Optional[str]:
+    """member_id must be the user or a member of their household; otherwise it becomes None (shared meal)."""
+    if not member_id:
+        return None
+    if member_id == user["user_id"]:
+        return member_id
+    hid = user.get("household_id")
+    if hid:
+        h = await db.households.find_one({"id": hid, "members": member_id}, {"_id": 0, "id": 1})
+        if h:
+            return member_id
+    raise HTTPException(400, "membro non valido")
+
 @api_router.post("/meals")
 async def create_meal(body: MealCreate, request: Request):
     user = await get_user(request)
+    if body.slot not in SLOTS:
+        raise HTTPException(400, "slot non valido")
     doc = body.model_dump()
+    doc["member_id"] = await _valid_member(user, body.member_id)
     doc.update(owned(user))
     doc["id"] = f"mea_{uuid.uuid4().hex[:12]}"
     doc["created_at"] = datetime.now(timezone.utc)
@@ -730,9 +769,11 @@ async def delete_meal(mid: str, request: Request):
 async def update_meal(mid: str, request: Request, body: Dict[str, Any]):
     """Change a planned meal (title / recipe_id / notes / slot)."""
     user = await get_user(request)
-    allowed = {k: v for k, v in body.items() if k in {"title", "recipe_id", "notes", "slot", "date"}}
+    allowed = {k: v for k, v in body.items() if k in {"title", "recipe_id", "notes", "slot", "date", "member_id"}}
     if "slot" in allowed and allowed["slot"] not in SLOTS:
         raise HTTPException(400, "slot non valido")
+    if "member_id" in allowed:
+        allowed["member_id"] = await _valid_member(user, allowed["member_id"])
     if allowed.get("recipe_id"):
         r = await db.recipes.find_one({"id": allowed["recipe_id"], **scope(user)}, {"_id": 0, "title": 1})
         if not r:
@@ -836,7 +877,7 @@ async def _household_view(user: dict):
     h = await db.households.find_one({"id": hid}, {"_id": 0})
     if not h:
         return {"household": None, "members": []}
-    members = await db.users.find({"user_id": {"$in": h.get("members", [])}}, {"_id": 0, "user_id": 1, "name": 1, "email": 1, "picture": 1}).to_list(50)
+    members = await db.users.find({"user_id": {"$in": h.get("members", [])}}, {"_id": 0, "user_id": 1, "name": 1, "email": 1, "picture": 1, "diet": 1}).to_list(50)
     return {"household": h, "members": members}
 
 async def _attach_docs(user_id: str, hid: Optional[str]):
@@ -983,8 +1024,14 @@ async def ai_recipe(body: AiRecipeBody, request: Request):
         raise HTTPException(400, "descrivi la ricetta che cerchi")
     pantry = await db.pantry.find({**scope(user), "qty": {"$gt": 0}}, {"_id": 0, "name": 1}).to_list(200)
     names = ", ".join(p["name"] for p in pantry[:60])
+    diet = ""
+    if body.member_id:
+        mid = await _valid_member(user, body.member_id)
+        member = await db.users.find_one({"user_id": mid}, {"_id": 0, "diet": 1, "name": 1})
+        if member and (member.get("diet") or "").strip():
+            diet = f"La ricetta è per {member.get('name') or 'un membro della famiglia'} che segue questa dieta/preferenze: {member['diet'].strip()}. Rispettala rigorosamente (porzione singola). "
     prompt = (
-        f"Crea una ricetta completa per: \"{qtxt}\". "
+        f"Crea una ricetta completa per: \"{qtxt}\". {diet}"
         f"{'Nota: l utente ha in casa ' + names + '; usali SOLO se sono ingredienti naturali di questa ricetta, altrimenti ignorali e resta fedele alla ricetta tradizionale. ' if names else ''}"
         "Rispondi SOLO con JSON valido: "
         '{"title":"..","description":"..","time_min":30,"servings":2,"ingredients":[{"name":"..","qty":1,"unit":"g"}],"steps":["..",".."],"tags":[".."]}. '
@@ -1006,39 +1053,67 @@ async def ai_recipe(body: AiRecipeBody, request: Request):
                        "ingredients": norm_ingredients(data.get("ingredients")), "steps": [str(s) for s in (data.get("steps") or []) if str(s).strip()],
                        "tags": list({*[str(t) for t in (data.get("tags") or [])], "Chef AI"})}}
 
-@api_router.post("/ai/weekly-plan")
-async def weekly_plan(body: WeeklyPlanBody, request: Request):
-    """Generate a 7-day plan (colazione/pranzo/cena) from the pantry. Returns a preview; save with /ai/weekly-plan/save."""
+def _clean_recipe(data: Any, extra_tags: List[str] = []) -> Optional[Dict[str, Any]]:
+    if isinstance(data, list):
+        data = data[0] if data else None
+    if not isinstance(data, dict) or not data.get("title"):
+        return None
+    return {"title": str(data["title"]).strip(), "description": str(data.get("description") or ""),
+            "time_min": _to_number(data.get("time_min")) or 30, "servings": _to_number(data.get("servings")) or 2,
+            "ingredients": norm_ingredients(data.get("ingredients")), "steps": [str(s) for s in (data.get("steps") or []) if str(s).strip()],
+            "tags": list({*[str(t) for t in (data.get("tags") or [])], *extra_tags})}
+
+@api_router.post("/ai/expiring-recipe")
+async def ai_expiring_recipe(request: Request, days: int = 3):
+    """ONE anti-waste recipe built around pantry items expiring within `days` days (preview; save with POST /recipes)."""
     user = await get_user(request)
+    exp = (await pantry_expiring(request, days))["items"]
+    if not exp:
+        raise HTTPException(400, "nessun prodotto in scadenza nei prossimi giorni")
+    urgent = [f"{i['name']} ({i.get('qty', '')} {i.get('unit', '')})".strip() for i in exp[:12]]
+    others = [p["name"] for p in await db.pantry.find({**scope(user), "qty": {"$gt": 0}}, {"_id": 0, "name": 1}).to_list(200) if not any(name_matches(p["name"], e["name"]) for e in exp)]
+    diet = (user.get("diet") or "").strip()
+    prompt = (
+        f"Devo usare SUBITO questi prodotti che stanno per scadere: {', '.join(urgent)}. "
+        f"{'Altri ingredienti che ho in casa: ' + ', '.join(others[:40]) + '. ' if others else ''}"
+        "Crea UNA ricetta gustosa che usi il maggior numero possibile dei prodotti in scadenza (idealmente tutti) e solo ingredienti comuni oltre a quelli in casa. "
+        f"{'Rispetta questa dieta/preferenze: ' + diet + '. ' if diet else ''}"
+        "Rispondi SOLO con JSON valido: "
+        '{"title":"..","description":"..","time_min":30,"servings":2,"ingredients":[{"name":"..","qty":1,"unit":"g"}],"steps":["..",".."],"tags":[".."]}. '
+        "qty numerica (per 'quanto basta' usa qty 1 e unit \"q.b.\"), 3-8 passaggi chiari in italiano."
+    )
+    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"exp_{user['user_id']}_{uuid.uuid4().hex[:6]}", system_message=_chef_system_prompt()).with_model("gemini", "gemini-3-flash-preview")
     try:
-        start = datetime.strptime(body.start_date, "%Y-%m-%d").date() if body.start_date else datetime.now().date()
-    except ValueError:
-        raise HTTPException(400, "start_date non valida")
-    dates = [(start + timedelta(days=i)).isoformat() for i in range(7)]
-    items = await db.pantry.find(scope(user), {"_id": 0}).to_list(300)
-    ing_list = [f"{i['name']} ({i.get('qty', '')} {i.get('unit', '')})".strip() for i in items]
-    prefs = f" Preferenze dell'utente: {body.preferences}." if body.preferences else ""
+        text = await chat.send_message(UserMessage(text=prompt))
+        data = extract_json(text if isinstance(text, str) else str(text))
+    except Exception as e:
+        logging.error(f"expiring recipe err: {e}")
+        raise HTTPException(502, "Chef AI non ha risposto, riprova")
+    rec = _clean_recipe(data, ["Chef AI", "anti-spreco"])
+    if not rec:
+        raise HTTPException(502, "Chef AI non ha trovato una ricetta valida, riprova")
+    used = [e["name"] for e in exp if any(name_matches(e["name"], i["name"]) for i in rec["ingredients"])]
+    return {"recipe": rec, "expiring": [{"name": e["name"], "days_left": e["days_left"]} for e in exp], "used": used}
+
+async def _generate_plan_days(user: dict, dates: List[str], ing_list: List[str], prefs: str, diet: Optional[str] = None, who: Optional[str] = None):
+    """Ask Chef AI for a 7-day plan; returns normalized [{date, meals:[{slot, recipe}]}]."""
+    diet_txt = f" Questo piano è SOLO per {who}, che segue questa dieta/preferenze: {diet}. Ogni pasto deve rispettarla rigorosamente (porzioni per 1 persona)." if diet else ""
     prompt = (
         f"Crea un piano pasti di 7 giorni (colazione, pranzo, cena e uno spuntino leggero) per le date {', '.join(dates)}. "
         f"Ingredienti già disponibili in casa: {', '.join(ing_list) if ing_list else 'nessuno'}. "
         "Usa il più possibile gli ingredienti disponibili, riducendo gli sprechi, e varia i piatti; cucina italiana casalinga, colazioni semplici."
-        f"{prefs} "
+        f"{prefs}{diet_txt} "
         "Rispondi SOLO con JSON valido con schema: "
         '{"days":[{"date":"YYYY-MM-DD","meals":[{"slot":"colazione|pranzo|cena|spuntino","recipe":{"title":"..","description":"..","time_min":20,"servings":2,'
         '"ingredients":[{"name":"..","qty":1,"unit":"g"}],"steps":["..",".."],"tags":[".."]}}]}]}. '
         "Ogni ricetta deve avere ingredienti completi con qty numerica (per 'quanto basta' usa qty 1 e unit \"q.b.\") e 2-5 passaggi brevi (per lo spuntino 1-2 passaggi). Nessun testo fuori dal JSON."
     )
     chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"plan_{user['user_id']}_{uuid.uuid4().hex[:6]}", system_message=_chef_system_prompt()).with_model("gemini", "gemini-3-flash-preview")
-    try:
-        text = await chat.send_message(UserMessage(text=prompt))
-        text = text if isinstance(text, str) else str(text)
-        data = extract_json(text)
-    except Exception as e:
-        logging.error(f"weekly plan err: {e}")
-        raise HTTPException(502, "Chef AI non ha risposto, riprova tra poco")
+    text = await chat.send_message(UserMessage(text=prompt))
+    data = extract_json(text if isinstance(text, str) else str(text))
     raw_days = (data or {}).get("days") if isinstance(data, dict) else (data if isinstance(data, list) else None)
     if not raw_days:
-        raise HTTPException(502, "Chef AI ha restituito un piano non valido, riprova")
+        raise ValueError("piano non valido")
     days = []
     for idx, d in enumerate(raw_days[:7]):
         date = d.get("date") if isinstance(d.get("date"), str) and re.match(r"^\d{4}-\d{2}-\d{2}$", d.get("date", "")) else dates[min(idx, 6)]
@@ -1056,21 +1131,46 @@ async def weekly_plan(body: WeeklyPlanBody, request: Request):
                 "tags": [str(t) for t in (rec.get("tags") or [])]}})
         meals.sort(key=lambda x: SLOTS.index(x["slot"]))
         days.append({"date": date, "meals": meals})
-    return {"start_date": dates[0], "end_date": dates[-1], "days": days}
+    return days
 
-@api_router.post("/ai/weekly-plan/save")
-async def weekly_plan_save(body: WeeklyPlanSaveBody, request: Request):
-    """Persist a generated plan: creates recipes (with structured ingredients) and meals linked to them."""
+@api_router.post("/ai/weekly-plan")
+async def weekly_plan(body: WeeklyPlanBody, request: Request):
+    """Generate a 7-day plan from the pantry: one shared plan for the family + a separate plan for each member with a diet set.
+    Returns a preview; save with /ai/weekly-plan/save."""
     user = await get_user(request)
-    if not body.days:
-        raise HTTPException(400, "piano vuoto")
-    dates = sorted({d.get("date") for d in body.days if d.get("date")})
-    now = datetime.now(timezone.utc)
-    if body.replace and dates:
-        await db.meals.delete_many({**scope(user), "date": {"$gte": dates[0], "$lte": dates[-1]}, "slot": {"$in": SLOTS}})
-    recipes_created, meals_created = 0, 0
-    title_cache: Dict[str, str] = {}
-    for d in body.days:
+    try:
+        start = datetime.strptime(body.start_date, "%Y-%m-%d").date() if body.start_date else datetime.now().date()
+    except ValueError:
+        raise HTTPException(400, "start_date non valida")
+    dates = [(start + timedelta(days=i)).isoformat() for i in range(7)]
+    items = await db.pantry.find(scope(user), {"_id": 0}).to_list(300)
+    ing_list = [f"{i['name']} ({i.get('qty', '')} {i.get('unit', '')})".strip() for i in items]
+    prefs = f" Preferenze dell'utente: {body.preferences}." if body.preferences else ""
+    members = (await _household_view(user))["members"]
+    dieters = [m for m in members if (m.get("diet") or "").strip()]
+    if not members and (user.get("diet") or "").strip():
+        # single user with a diet: the common plan simply follows it
+        prefs += f" Dieta/preferenze da rispettare: {user['diet'].strip()}."
+    if dieters and len(dieters) < len(members):
+        prefs += " Il piano comune è per i membri della famiglia SENZA dieta particolare."
+    tasks = [_generate_plan_days(user, dates, ing_list, prefs)]
+    tasks += [_generate_plan_days(user, dates, ing_list, prefs, diet=m["diet"].strip(), who=m.get("name") or m["email"]) for m in dieters]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    if isinstance(results[0], Exception):
+        logging.error(f"weekly plan err: {results[0]}")
+        raise HTTPException(502, "Chef AI non ha risposto, riprova tra poco")
+    member_plans = []
+    for m, res in zip(dieters, results[1:]):
+        if isinstance(res, Exception):
+            logging.error(f"member plan err ({m['user_id']}): {res}")
+            member_plans.append({"member_id": m["user_id"], "name": m.get("name") or m["email"], "diet": m["diet"], "days": [], "error": "Chef AI non ha risposto per questo piano"})
+        else:
+            member_plans.append({"member_id": m["user_id"], "name": m.get("name") or m["email"], "diet": m["diet"], "days": res})
+    return {"start_date": dates[0], "end_date": dates[-1], "days": results[0], "member_plans": member_plans}
+
+async def _save_plan_days(user: dict, days: List[Dict[str, Any]], member_id: Optional[str], now: datetime, title_cache: Dict[str, str]):
+    recipes_created = meals_created = 0
+    for d in days:
         date = d.get("date")
         if not date:
             continue
@@ -1096,9 +1196,36 @@ async def weekly_plan_save(body: WeeklyPlanSaveBody, request: Request):
                         "created_at": now, **owned(user)})
                     recipes_created += 1
                 title_cache[key] = rid
-            await db.meals.insert_one({"id": f"mea_{uuid.uuid4().hex[:12]}", "date": date, "slot": slot, "title": title,
-                                       "recipe_id": rid, "notes": "Piano settimanale AI", "created_at": now, **owned(user)})
+            await db.meals.insert_one({"id": f"mea_{uuid.uuid4().hex[:12]}", "date": date, "slot": slot, "title": title, "recipe_id": rid,
+                                       "notes": "Piano settimanale AI", "member_id": member_id, "created_at": now, **owned(user)})
             meals_created += 1
+    return recipes_created, meals_created
+
+@api_router.post("/ai/weekly-plan/save")
+async def weekly_plan_save(body: WeeklyPlanSaveBody, request: Request):
+    """Persist a generated plan: creates recipes (with structured ingredients) and meals linked to them.
+    Shared meals get member_id=None; each member plan is saved with that member_id."""
+    user = await get_user(request)
+    if not body.days and not body.member_plans:
+        raise HTTPException(400, "piano vuoto")
+    all_days = list(body.days) + [d for mp in body.member_plans for d in (mp.get("days") or [])]
+    dates = sorted({d.get("date") for d in all_days if d.get("date")})
+    now = datetime.now(timezone.utc)
+    title_cache: Dict[str, str] = {}
+    recipes_created = meals_created = 0
+    if body.days:
+        if body.replace and dates:
+            await db.meals.delete_many({**scope(user), "date": {"$gte": dates[0], "$lte": dates[-1]}, "slot": {"$in": SLOTS}, "member_id": {"$in": [None, ""]}})
+        rc, mc = await _save_plan_days(user, body.days, None, now, title_cache)
+        recipes_created += rc; meals_created += mc
+    for mp in body.member_plans:
+        mid = await _valid_member(user, mp.get("member_id"))
+        if not mid or not mp.get("days"):
+            continue
+        if body.replace and dates:
+            await db.meals.delete_many({**scope(user), "date": {"$gte": dates[0], "$lte": dates[-1]}, "member_id": mid})
+        rc, mc = await _save_plan_days(user, mp["days"], mid, now, title_cache)
+        recipes_created += rc; meals_created += mc
     return {"recipes_created": recipes_created, "meals_created": meals_created, "start_date": dates[0] if dates else None, "end_date": dates[-1] if dates else None}
 
 @api_router.post("/ai/import-photo")

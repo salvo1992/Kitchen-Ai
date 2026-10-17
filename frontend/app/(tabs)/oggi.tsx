@@ -10,6 +10,8 @@ import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { syncExpiryReminder } from "@/src/reminders";
 import { CATEGORIES } from "@/src/categories";
+import { ExpiringRecipeCard } from "@/src/components/ExpiringRecipeCard";
+import { useMembers, memberLabel } from "@/src/use-members";
 import { usePullRefresh } from "@/src/use-pull-refresh";
 import { makeStyles, useTheme, spacing, radius } from "@/src/theme";
 
@@ -116,9 +118,13 @@ export default function Oggi() {
     if (expiringQ.data) syncExpiryReminder(expiringQ.data).catch(() => {});
   }, [expiringQ.data]);
 
+  const { members, hasFamily } = useMembers();
+  // My menu: personal meal (diet) wins over the shared family meal; other members' personal meals are not mine.
   const slotsData = ["colazione", "pranzo", "cena", "spuntino"].map((slot) => {
-    const m = (mealsQ.data || []).find((x: any) => x.slot === slot && x.date === selDay);
-    return { slot, meal: m };
+    const inSlot = (mealsQ.data || []).filter((x: any) => x.slot === slot && x.date === selDay);
+    const m = inSlot.find((x: any) => x.member_id === user?.user_id) || inSlot.find((x: any) => !x.member_id);
+    const others = inSlot.filter((x: any) => x.member_id && x.member_id !== user?.user_id);
+    return { slot, meal: m, others };
   });
   const mealCountByDay = useMemo(() => {
     const c: Record<string, number> = {};
@@ -160,6 +166,8 @@ export default function Oggi() {
           <Ionicons name="chevron-forward" size={18} color={colors.muted} />
         </Pressable>
 
+        {expiringCount > 0 && <ExpiringRecipeCard items={expiring} />}
+
         <View style={styles.section}>
           <View style={styles.sectionHead}>
             <Text style={styles.sectionTitle}>{selLabel}</Text>
@@ -182,7 +190,7 @@ export default function Oggi() {
             })}
           </ScrollView>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: spacing.md }}>
-            {slotsData.map(({ slot, meal }) => (
+            {slotsData.map(({ slot, meal, others }) => (
               <Pressable
                 key={slot}
                 testID={`slot-${slot}`}
@@ -194,8 +202,9 @@ export default function Oggi() {
                     <Image source={HERO_IMAGES[slot]} style={{ width: "100%", height: "100%" }} contentFit="cover" />
                     <LinearGradient colors={["transparent", "rgba(0,0,0,0.75)"]} style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0 }} />
                     <View style={styles.slotOverlay}>
-                      <Text style={styles.slotLabel}>{slot}</Text>
+                      <Text style={styles.slotLabel}>{slot}{hasFamily ? (meal.member_id ? " · solo per te" : " · famiglia") : ""}</Text>
                       <Text style={styles.slotTitle} numberOfLines={2}>{meal.title}</Text>
+                      {others.length > 0 && <Text style={[styles.slotLabel, { textTransform: "none", letterSpacing: 0, marginTop: 4 }]} numberOfLines={1}>{others.map((o: any) => `${memberLabel(members.find((mm) => mm.user_id === o.member_id), user?.user_id)}: ${o.title}`).join(" · ")}</Text>}
                     </View>
                   </>
                 ) : (

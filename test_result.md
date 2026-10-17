@@ -101,3 +101,9 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+## Iteration 14 (main agent) — Dieta per membro, pasti per componente, ricetta anti-spreco
+- Backend: PATCH /api/auth/profile {name?, diet?}; meals hanno `member_id` (null = tutti); POST/PATCH /api/meals validano member_id (utente o membro household);
+  POST /api/ai/expiring-recipe (1 ricetta con prodotti in scadenza ≤3gg, rispetta dieta utente); POST /api/ai/weekly-plan ritorna `member_plans` (piano separato per ogni membro con diet);
+  POST /api/ai/weekly-plan/save accetta `member_plans:[{member_id, days}]` → meals con member_id; /api/ai/recipe accetta `member_id` (rispetta la dieta); /api/household members include `diet`; signin ritorna anche diet/household_id.
+- Frontend: Impostazioni → "La mia dieta / preferenze" (DietEditor); Oggi → ExpiringRecipeCard (Chiedi al Chef → preview → Metti nel menu di oggi / Salva ricetta); Calendario → più pasti per slot con tag Tutti/membro,
+  MealEditor con selettore "Per chi?" quando c'è famiglia; Piano settimanale → sezioni "Menu della famiglia" + "Menu di <membro>"; Famiglia → dieta sotto ogni membro.

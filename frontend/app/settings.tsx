@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/src/auth";
 import { ReminderCard } from "@/src/components/ReminderCard";
+import { DietEditor } from "@/src/components/DietEditor";
 import { resetOnboarding } from "@/src/storage-keys";
 import { makeStyles, useTheme, spacing, radius } from "@/src/theme";
 
@@ -59,6 +60,7 @@ export default function Settings() {
           <Text style={styles.email}>{user?.email}</Text>
         </View>
         <ReminderCard />
+        <DietEditor />
         <Pressable testID="settings-family" style={styles.row} onPress={() => router.push("/family")}><Ionicons name="people-outline" size={22} color={colors.brandPrimary} /><Text style={styles.rowTxt}>Famiglia</Text><Text style={{ color: colors.muted, fontSize: 12 }}>{user?.household_id ? "Attiva" : "Condividi la cucina"}</Text><Ionicons name="chevron-forward" size={18} color={colors.muted} /></Pressable>
         <Pressable testID="settings-plan" style={styles.row} onPress={() => router.push("/weekly-plan")}><Ionicons name="sparkles-outline" size={22} color={colors.brandPrimary} /><Text style={styles.rowTxt}>Piano settimanale AI</Text><Ionicons name="chevron-forward" size={18} color={colors.muted} /></Pressable>
         <Pressable testID="settings-history" style={styles.row} onPress={() => router.push("/history")}><Ionicons name="time-outline" size={22} color={colors.brandPrimary} /><Text style={styles.rowTxt}>Storico cucinato</Text><Ionicons name="chevron-forward" size={18} color={colors.muted} /></Pressable>

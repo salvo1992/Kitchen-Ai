@@ -31,15 +31,25 @@ const useStyles = makeStyles((c) => ({
   saveBar: { padding: spacing.lg, borderTopWidth: 1, borderTopColor: c.divider, backgroundColor: c.surface, gap: spacing.sm },
   note: { color: c.muted, fontSize: 12, textAlign: "center" },
   errorTxt: { color: c.error, textAlign: "center", marginTop: spacing.md, paddingHorizontal: spacing.lg },
+  sectionHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm },
+  sectionTitle: { fontSize: 16, fontWeight: "700", color: c.onSurface },
+  sectionSub: { color: c.muted, fontSize: 12 },
 }));
 
 const DAY_NAMES = ["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"];
 
-type Plan = { start_date: string; end_date: string; days: { date: string; meals: { slot: string; recipe: any }[] }[] };
+type PlanDay = { date: string; meals: { slot: string; recipe: any }[] };
+type MemberPlan = { member_id: string; name: string; diet: string; days: PlanDay[]; error?: string };
+type Plan = { start_date: string; end_date: string; days: PlanDay[]; member_plans?: MemberPlan[] };
 
 function dayLabel(iso: string) {
   const d = new Date(iso + "T12:00:00");
   return `${DAY_NAMES[d.getDay()]} ${d.getDate()}/${d.getMonth() + 1}`;
+}
+
+/** Replace/remove one slot inside a list of plan days. */
+function patchDays(days: PlanDay[], date: string, slot: string, meal: { slot: string; recipe: any } | null): PlanDay[] {
+  return days.map((d) => d.date !== date ? d : { ...d, meals: [...d.meals.filter((m) => m.slot !== slot), ...(meal ? [meal] : [])].sort((a, b) => ALL_SLOTS.indexOf(a.slot) - ALL_SLOTS.indexOf(b.slot)) });
 }
 
 export default function WeeklyPlan() {
@@ -51,7 +61,7 @@ export default function WeeklyPlan() {
   const [prefs, setPrefs] = useState("");
   const [plan, setPlan] = useState<Plan | null>(null);
   const [saved, setSaved] = useState<{ recipes_created: number; meals_created: number } | null>(null);
-  const [editing, setEditing] = useState<{ date: string; slot: string } | null>(null);
+  const [editing, setEditing] = useState<{ date: string; slot: string; memberId: string | null } | null>(null);
 
   const genM = useMutation({
     mutationFn: () => api<Plan>("/api/ai/weekly-plan", { method: "POST", body: JSON.stringify({ preferences: prefs }) }),
@@ -59,7 +69,7 @@ export default function WeeklyPlan() {
   });
 
   const saveM = useMutation({
-    mutationFn: () => api<{ recipes_created: number; meals_created: number; start_date: string; end_date: string }>("/api/ai/weekly-plan/save", { method: "POST", body: JSON.stringify({ days: plan!.days, replace: true }) }),
+    mutationFn: () => api<{ recipes_created: number; meals_created: number; start_date: string; end_date: string }>("/api/ai/weekly-plan/save", { method: "POST", body: JSON.stringify({ days: plan!.days, member_plans: (plan!.member_plans || []).map((mp) => ({ member_id: mp.member_id, days: mp.days })), replace: true }) }),
     onSuccess: (r) => {
       setSaved(r);
       qc.invalidateQueries({ queryKey: ["meals"] });
@@ -81,7 +91,32 @@ export default function WeeklyPlan() {
     ]);
   };
 
-  const totalMeals = plan?.days.reduce((n, d) => n + d.meals.length, 0) || 0;
+  const memberPlans = plan?.member_plans || [];
+  const totalMeals = (plan?.days.reduce((n, d) => n + d.meals.length, 0) || 0) + memberPlans.reduce((n, mp) => n + mp.days.reduce((k, d) => k + d.meals.length, 0), 0);
+
+  const renderDays = (days: PlanDay[], memberId: string | null, prefix: string) => days.map((d) => (
+    <View key={`${prefix}-${d.date}`} style={styles.day} testID={`${prefix}-day-${d.date}`}>
+      <Text style={styles.dayLabel}>{dayLabel(d.date)}</Text>
+      {ALL_SLOTS.map((slot) => {
+        const m = d.meals.find((x) => x.slot === slot);
+        return (
+          <Pressable key={slot} testID={`${prefix}-meal-${d.date}-${slot}`} style={styles.meal} onPress={() => !saved && setEditing({ date: d.date, slot, memberId })} disabled={!!saved}>
+            <View style={styles.slotIcon}><Ionicons name={(SLOT_ICON[slot] || "restaurant-outline") as any} size={16} color={m ? colors.brandPrimary : colors.muted} /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.slot}>{slot}</Text>
+              {m ? (
+                <>
+                  <Text style={styles.mealTitle}>{m.recipe.title}</Text>
+                  <Text style={styles.mealMeta}>⏱ {m.recipe.time_min} min · {m.recipe.ingredients?.length || 0} ingredienti</Text>
+                </>
+              ) : <Text style={[styles.mealMeta, { fontStyle: "italic" }]}>nessuno · tocca per aggiungere</Text>}
+            </View>
+            {!saved && <Ionicons name={m ? "create-outline" : "add-circle-outline"} size={18} color={colors.brandSecondary} />}
+          </Pressable>
+        );
+      })}
+    </View>
+  ));
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -95,7 +130,7 @@ export default function WeeklyPlan() {
           <View style={styles.hero}>
             <View style={styles.heroIcon}><Ionicons name="calendar" size={36} color={colors.brandPrimary} /></View>
             <Text style={styles.heroTitle}>7 giorni, 28 pasti, zero sprechi</Text>
-            <Text style={styles.heroSub}>Chef AI legge la tua dispensa e crea colazione, pranzo, cena e spuntino per la settimana; poi puoi cambiare ogni pasto come vuoi. Ogni piatto viene salvato come ricetta con ingredienti e passaggi.</Text>
+            <Text style={styles.heroSub}>Chef AI legge la tua dispensa e crea colazione, pranzo, cena e spuntino per la settimana; poi puoi cambiare ogni pasto come vuoi. Chi in famiglia ha impostato una dieta riceve un menu separato, senza cambiare quello degli altri.</Text>
             <TextInput testID="plan-prefs" placeholder="Preferenze (es. vegetariano, veloce, senza glutine)" placeholderTextColor={colors.muted} value={prefs} onChangeText={setPrefs} style={styles.input} />
             <Pressable testID="generate-plan" onPress={() => genM.mutate()} style={styles.btn} disabled={genM.isPending}>
               {genM.isPending ? <><ActivityIndicator color={colors.onBrandPrimary} /><Text style={styles.btnTxt}>Sto cucinando il piano… (~20s)</Text></> : <><Ionicons name="sparkles" size={18} color={colors.onBrandPrimary} /><Text style={styles.btnTxt}>Genera il piano</Text></>}
@@ -114,27 +149,24 @@ export default function WeeklyPlan() {
               </Pressable>
             </View>
             {!saved && <Text style={{ color: colors.muted, fontSize: 12, paddingHorizontal: spacing.lg, marginBottom: spacing.sm }}>Tocca un pasto per cambiarlo con Chef AI o dal ricettario.</Text>}
-            {plan.days.map((d) => (
-              <View key={d.date} style={styles.day} testID={`plan-day-${d.date}`}>
-                <Text style={styles.dayLabel}>{dayLabel(d.date)}</Text>
-                {ALL_SLOTS.map((slot) => {
-                  const m = d.meals.find((x) => x.slot === slot);
-                  return (
-                    <Pressable key={slot} testID={`plan-meal-${d.date}-${slot}`} style={styles.meal} onPress={() => !saved && setEditing({ date: d.date, slot })} disabled={!!saved}>
-                      <View style={styles.slotIcon}><Ionicons name={(SLOT_ICON[slot] || "restaurant-outline") as any} size={16} color={m ? colors.brandPrimary : colors.muted} /></View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.slot}>{slot}</Text>
-                        {m ? (
-                          <>
-                            <Text style={styles.mealTitle}>{m.recipe.title}</Text>
-                            <Text style={styles.mealMeta}>⏱ {m.recipe.time_min} min · {m.recipe.ingredients?.length || 0} ingredienti</Text>
-                          </>
-                        ) : <Text style={[styles.mealMeta, { fontStyle: "italic" }]}>nessuno · tocca per aggiungere</Text>}
-                      </View>
-                      {!saved && <Ionicons name={m ? "create-outline" : "add-circle-outline"} size={18} color={colors.brandSecondary} />}
-                    </Pressable>
-                  );
-                })}
+            {memberPlans.length > 0 && (
+              <View style={styles.sectionHead} testID="plan-section-common">
+                <Ionicons name="people" size={16} color={colors.brandPrimary} />
+                <Text style={styles.sectionTitle}>Menu della famiglia</Text>
+              </View>
+            )}
+            {renderDays(plan.days, null, "plan")}
+            {memberPlans.map((mp) => (
+              <View key={mp.member_id} testID={`plan-member-${mp.member_id}`}>
+                <View style={styles.sectionHead}>
+                  <Ionicons name="leaf" size={16} color={colors.brandPrimary} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.sectionTitle}>Menu di {mp.name}</Text>
+                    <Text style={styles.sectionSub} numberOfLines={2}>Dieta: {mp.diet}</Text>
+                  </View>
+                </View>
+                {mp.error && mp.days.length === 0 && <Text style={styles.errorTxt}>{mp.error}. Rigenera il piano per riprovare.</Text>}
+                {renderDays(mp.days, mp.member_id, `plan-${mp.member_id}`)}
               </View>
             ))}
           </>
@@ -146,14 +178,20 @@ export default function WeeklyPlan() {
           visible
           date={editing.date}
           slot={editing.slot}
-          currentTitle={plan.days.find((d) => d.date === editing.date)?.meals.find((m) => m.slot === editing.slot)?.recipe.title}
+          memberId={editing.memberId}
+          currentTitle={(editing.memberId ? memberPlans.find((mp) => mp.member_id === editing.memberId)?.days : plan.days)?.find((d) => d.date === editing.date)?.meals.find((m) => m.slot === editing.slot)?.recipe.title}
           onClose={() => setEditing(null)}
           onPick={async (p) => {
             let recipe = p.recipe;
             if (!recipe && p.recipe_id) recipe = await api<any>(`/api/recipes/${p.recipe_id}`);
-            setPlan((prev) => prev && ({ ...prev, days: prev.days.map((d) => d.date !== editing.date ? d : { ...d, meals: [...d.meals.filter((m) => m.slot !== editing.slot), { slot: editing.slot, recipe: { ...recipe, title: p.title } }].sort((a, b) => ALL_SLOTS.indexOf(a.slot) - ALL_SLOTS.indexOf(b.slot)) }) }));
+            const meal = { slot: editing.slot, recipe: { ...recipe, title: p.title } };
+            setPlan((prev) => prev && (editing.memberId
+              ? { ...prev, member_plans: (prev.member_plans || []).map((mp) => mp.member_id !== editing.memberId ? mp : { ...mp, days: patchDays(mp.days, editing.date, editing.slot, meal) }) }
+              : { ...prev, days: patchDays(prev.days, editing.date, editing.slot, meal) }));
           }}
-          onRemove={() => setPlan((prev) => prev && ({ ...prev, days: prev.days.map((d) => d.date !== editing.date ? d : { ...d, meals: d.meals.filter((m) => m.slot !== editing.slot) }) }))}
+          onRemove={() => setPlan((prev) => prev && (editing.memberId
+            ? { ...prev, member_plans: (prev.member_plans || []).map((mp) => mp.member_id !== editing.memberId ? mp : { ...mp, days: patchDays(mp.days, editing.date, editing.slot, null) }) }
+            : { ...prev, days: patchDays(prev.days, editing.date, editing.slot, null) }))}
         />
       )}
       {plan && (
