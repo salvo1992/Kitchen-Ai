@@ -10,6 +10,7 @@ import { api } from "@/src/api";
 import { resolveUrl } from "@/src/media";
 import { usePullRefresh } from "@/src/use-pull-refresh";
 import { makeStyles, useTheme, spacing, radius } from "@/src/theme";
+import { GradientHeader, Enter, Bounce } from "@/src/components/ui";
 
 const FALLBACK_IMG = "https://images.pexels.com/photos/1640775/pexels-photo-1640775.jpeg?w=600";
 
@@ -18,7 +19,7 @@ const useStyles = makeStyles((c) => ({
   header: { paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
   title: { fontSize: 26, fontWeight: "700", color: c.onSurface, letterSpacing: -0.5 },
   sub: { color: c.muted, marginTop: 2 },
-  search: { flexDirection: "row", alignItems: "center", backgroundColor: c.surfaceSecondary, borderRadius: radius.pill, paddingHorizontal: spacing.lg, marginTop: spacing.md, gap: spacing.sm },
+  search: { flexDirection: "row", alignItems: "center", backgroundColor: c.surface, borderRadius: radius.pill, paddingHorizontal: spacing.lg, marginTop: spacing.md, gap: spacing.sm },
   searchInput: { flex: 1, paddingVertical: 12, color: c.onSurface },
   chipsRow: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, gap: spacing.sm, flexDirection: "row" },
   chip: { paddingHorizontal: spacing.lg, height: 36, borderRadius: radius.pill, backgroundColor: c.surfaceSecondary, alignItems: "center", justifyContent: "center", flexShrink: 0 },
@@ -93,16 +94,14 @@ export default function Ricette() {
 
   return (
     <View style={styles.root}>
-      <View style={{ paddingTop: insets.top + spacing.sm }}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Ricettario</Text>
-          <Text style={styles.sub}>Le tue ricette + suggerimenti AI</Text>
-          <View style={styles.search}>
-            <Ionicons name="search" size={18} color={colors.muted} />
-            <TextInput testID="recipe-search" placeholder="Cerca per titolo o ingrediente..." placeholderTextColor={colors.muted} value={q} onChangeText={setQ} style={styles.searchInput} />
-            {q.length > 0 && <Pressable testID="clear-search" onPress={() => setQ("")}><Ionicons name="close-circle" size={18} color={colors.muted} /></Pressable>}
-          </View>
+      <GradientHeader title="Ricettario" subtitle="Le tue ricette + suggerimenti AI" paddingTop={insets.top}>
+        <View style={styles.search}>
+          <Ionicons name="search" size={18} color={colors.muted} />
+          <TextInput testID="recipe-search" placeholder="Cerca per titolo o ingrediente..." placeholderTextColor={colors.muted} value={q} onChangeText={setQ} style={styles.searchInput} />
+          {q.length > 0 && <Pressable testID="clear-search" onPress={() => setQ("")}><Ionicons name="close-circle" size={18} color={colors.muted} /></Pressable>}
         </View>
+      </GradientHeader>
+      <View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
           {CHIPS.map((label) => (
             <Pressable key={label} testID={`chip-${label}`} onPress={() => setChip(label)} style={[styles.chip, chip === label && styles.chipActive]}>
@@ -132,8 +131,9 @@ export default function Ricette() {
             </Pressable>
           ) : null
         }
-        renderItem={({ item }) => (
-          <Pressable testID={`recipe-${item.id}`} style={styles.card} onPress={() => router.push({ pathname: "/recipe/[id]", params: { id: item.id } })}>
+        renderItem={({ item, index }) => (
+          <Enter index={index} style={{ flex: 1 }}>
+          <Bounce scale={0.97} testID={`recipe-${item.id}`} style={styles.card} onPress={() => router.push({ pathname: "/recipe/[id]", params: { id: item.id } })}>
             <Image source={resolveUrl(item.image_url) || FALLBACK_IMG} style={{ width: "100%", height: "100%" }} contentFit="cover" />
             <LinearGradient colors={["transparent", "rgba(0,0,0,0.8)"]} style={{ position: "absolute", left: 0, right: 0, top: 0, bottom: 0 }} />
             <View style={styles.cardOverlay}>
@@ -151,7 +151,8 @@ export default function Ricette() {
                 <Ionicons name="heart" size={14} color={colors.brandSecondary} />
               </View>
             )}
-          </Pressable>
+          </Bounce>
+          </Enter>
         )}
         ListEmptyComponent={
           <View style={styles.empty}>
@@ -199,9 +200,9 @@ export default function Ricette() {
         </Pressable>
       </Modal>
 
-      <Pressable testID="add-recipe-fab" onPress={() => router.push("/add-recipe")} style={[styles.fab, { bottom: insets.bottom + 100 }]}>
+      <Bounce testID="add-recipe-fab" onPress={() => router.push("/add-recipe")} style={[styles.fab, { bottom: insets.bottom + 100 }]}>
         <Ionicons name="add" size={28} color={colors.onBrandPrimary} />
-      </Pressable>
+      </Bounce>
     </View>
   );
 }

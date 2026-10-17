@@ -106,3 +106,10 @@ Frontend: EXPO_PUBLIC_BACKEND_URL
 - Pasti per componente: `meals.member_id` (null = tutta la famiglia). Calendario mostra più pasti per slot con tag Tutti/nome; MealEditor ha "Per chi?"; Oggi mostra il pasto personale (se c'è) altrimenti quello comune.
 - Piano settimanale AI: piano comune + piano separato per ogni membro con dieta (`member_plans`), salvati con member_id.
 - Ricetta anti-spreco: card in Oggi "Salva ciò che sta per scadere" → POST /api/ai/expiring-recipe → salva ricetta e/o mette a pranzo/cena di oggi.
+
+## Feature aggiunte (iteration_15)
+- Dispensa non alimentare: sezioni Pulizia, Bagno, Usa e getta, Casa (`kind: non_food`). Senza scadenza stampata → data di fine stimata (default per sezione, poi appresa dai "Finito" per famiglia); bottone "Finito" registra la durata, azzera e rimette in lista spesa. Oggi mostra KPI "prodotti per la casa stanno finendo".
+- Barcode anche per non-food (Open Food → Beauty → Products → Pet Food Facts) con sezione suggerita. Lettura scadenza da foto con AI (POST /api/ai/read-expiry) in Dispensa e scanner.
+- Corsie spesa: Pulizia casa, Igiene e bagno, Usa e getta (auto dal nome, forzate lato backend).
+- Calendario: chip membri (Tutti / per membro) con pasti personali + di famiglia; da Famiglia tocca un membro → calendario filtrato.
+- UI: header gradient coi colori del logo (salvia/crema/terracotta), animazioni d'ingresso e feedback pressione (src/components/ui.tsx) su Oggi, Ricette, Dispensa, Spesa, Calendario.

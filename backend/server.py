@@ -90,11 +90,16 @@ class PantryItemCreate(BaseModel):
     name: str
     qty: float = 1
     unit: str = "pz"
-    location: str = "pantry"  # pantry|fridge|freezer
-    expires_at: Optional[str] = None  # ISO date
+    location: str = "pantry"  # pantry|fridge|freezer|home|cleaning|hygiene|disposable
+    expires_at: Optional[str] = None  # ISO date; for non-food = data di fine prevista
     barcode: Optional[str] = None
     image_url: Optional[str] = None
     price: Optional[float] = None  # € per item, optional
+    kind: Optional[str] = None  # food|non_food (auto from location when missing)
+
+NON_FOOD_LOCATIONS = {"home", "cleaning", "hygiene", "disposable"}
+# Default "lasts about N days" for non-food products without a printed expiry, per location.
+DEFAULT_DURATION_DAYS = {"cleaning": 45, "hygiene": 30, "disposable": 21, "home": 60}
 
 class CookedBody(BaseModel):
     servings: Optional[int] = None
@@ -216,6 +221,9 @@ def norm_ingredients(raw) -> List[Dict[str, Any]]:
     return out
 
 AISLE_KEYWORDS = [
+    ("Pulizia casa", ["detersiv", "candeggina", "ammorbidente", "sgrassator", "anticalcare", "lavastoviglie", "brillantante", "pavimenti", "vetri", "spugn", "panno", "panni", "guanti", "scopa", "mocio", "detergente", "disinfettante", "deodorante ambient", "insetticid", "lucida", "sapone piatti", "piatti liquido"]),
+    ("Igiene e bagno", ["dentifricio", "spazzolino", "shampoo", "balsamo", "bagnoschiuma", "doccia", "sapone", "deodorante", "rasoio", "schiuma da barba", "assorbent", "pannolin", "salviett", "cotone", "cotton fioc", "crema mani", "crema corpo", "crema viso", "collutorio", "filo interdentale", "igiene"]),
+    ("Usa e getta", ["carta igienica", "scottex", "carta casa", "tovagliol", "fazzolett", "piatti di carta", "bicchieri di plastica", "bicchieri di carta", "posate di plastica", "sacchetti", "sacchi", "pellicola", "alluminio", "carta forno", "stuzzicadent", "cannucce", "pirottin", "usa e getta", "monouso"]),
     ("Frutta e verdura", ["pomodor", "cipoll", "aglio", "insalat", "zucchin", "melanzan", "peperon", "carot", "patat", "mela", "banan", "limon", "arancia", "spinac", "basilic", "prezzemol", "funghi", "fragol", "pera", "sedano", "broccol", "cavol", "zucca", "lattuga", "rucola", "avocado", "pesca", "uva", "kiwi", "finocchi", "porro", "verdur", "frutta", "erbe", "rosmarin", "salvia", "menta", "peperoncin"]),
     ("Carne e pesce", ["pollo", "manzo", "maiale", "tacchino", "salsiccia", "prosciutto", "speck", "pancetta", "salmone", "tonno", "merluzzo", "gamber", "cozze", "vongole", "pesce", "carne", "bistecca", "macinat", "agnello", "vitello", "bresaola", "wurstel"]),
     ("Latticini", ["latte", "burro", "yogurt", "formaggio", "parmigian", "grana", "mozzarell", "ricotta", "panna", "mascarpone", "pecorino", "gorgonzola", "stracchino", "uova", "uovo", "scamorza", "feta"]),
@@ -627,16 +635,103 @@ async def pantry_expiring(request: Request, days: int = 3):
     out.sort(key=lambda x: x["days_left"])
     return {"items": out, "count": len(out)}
 
+def _guess_nonfood_location(name: str) -> Optional[str]:
+    """Map a product name to a non-food pantry section via the shopping aisles; None when it looks like food."""
+    aisle = guess_aisle(name)
+    return {"Pulizia casa": "cleaning", "Igiene e bagno": "hygiene", "Usa e getta": "disposable"}.get(aisle)
+
+async def _estimate_duration(user: dict, name: str, location: str) -> Dict[str, Any]:
+    """How long this product usually lasts for this family: learned average from past 'finito' events, else the section default."""
+    learned = await db.product_durations.find({**scope(user), "key": _norm_name(name)}, {"_id": 0, "days": 1}).sort("created_at", -1).to_list(5)
+    if learned:
+        avg = sum(x["days"] for x in learned) / len(learned)
+        if len(learned) < 2:  # a single sample is noisy: blend it with the section default
+            avg = (avg + DEFAULT_DURATION_DAYS.get(location, 30)) / 2
+        return {"days": max(1, round(avg)), "source": "learned", "samples": len(learned)}
+    return {"days": DEFAULT_DURATION_DAYS.get(location, 30), "source": "default", "samples": 0}
+
+@api_router.get("/pantry/duration-estimate")
+async def pantry_duration_estimate(request: Request, name: str, location: str = "home"):
+    user = await get_user(request)
+    return await _estimate_duration(user, name, location)
+
 @api_router.post("/pantry")
 async def create_pantry(body: PantryItemCreate, request: Request):
     user = await get_user(request)
     doc = body.model_dump()
+    doc["kind"] = doc.get("kind") or ("non_food" if doc["location"] in NON_FOOD_LOCATIONS else "food")
+    doc["is_estimate"] = False
+    if doc["kind"] == "non_food" and not doc.get("expires_at"):
+        # no printed expiry (napkins, cups, detergents...): predict when it will run out so we can warn before it's finished
+        est = await _estimate_duration(user, doc["name"], doc["location"])
+        doc["expires_at"] = (datetime.now(timezone.utc).date() + timedelta(days=est["days"])).isoformat()
+        doc["is_estimate"] = True
+        doc["estimate_source"] = est["source"]
+    doc["purchased_at"] = datetime.now(timezone.utc).date().isoformat()
     doc.update(owned(user))
     doc["id"] = f"pan_{uuid.uuid4().hex[:12]}"
     doc["created_at"] = datetime.now(timezone.utc)
     await db.pantry.insert_one(doc)
     doc.pop("_id", None)
     return doc
+
+class FinishedBody(BaseModel):
+    reorder: bool = True  # put it back on the shopping list
+
+@api_router.post("/pantry/{pid}/finished")
+async def pantry_finished(pid: str, body: FinishedBody, request: Request):
+    """The product is used up: learn how long it lasted (purchase → today) to refine future estimates,
+    set qty 0 and (optionally) add it to the shopping list."""
+    user = await get_user(request)
+    item = await db.pantry.find_one({"id": pid, **scope(user)}, {"_id": 0})
+    if not item:
+        raise HTTPException(404, "articolo non trovato")
+    today = datetime.now(timezone.utc).date()
+    try:
+        bought = datetime.fromisoformat(str(item.get("purchased_at") or item["created_at"].date().isoformat())[:10]).date()
+    except Exception:
+        bought = today
+    lasted = max(1, (today - bought).days)
+    await db.product_durations.insert_one({"key": _norm_name(item["name"]), "name": item["name"], "days": lasted, "location": item.get("location"),
+                                           "created_at": datetime.now(timezone.utc), **owned(user)})
+    await db.pantry.update_one({"id": pid}, {"$set": {"qty": 0, "finished_at": today.isoformat()}})
+    added = None
+    if body.reorder:
+        listed = await db.shopping.find_one({**scope(user), "checked": False, "name": {"$regex": f"^{re.escape(item['name'])}$", "$options": "i"}}, {"_id": 0, "id": 1})
+        if not listed:
+            added = {"id": f"shp_{uuid.uuid4().hex[:12]}", "name": item["name"], "qty": 1, "unit": item.get("unit") or "pz", "aisle": guess_aisle(item["name"]),
+                     "checked": False, "note": f"Finito dopo {lasted} giorni", "created_at": datetime.now(timezone.utc), **owned(user)}
+            await db.shopping.insert_one(added)
+            added.pop("_id", None)
+    est = await _estimate_duration(user, item["name"], item.get("location") or "home")
+    return {"ok": True, "lasted_days": lasted, "new_estimate_days": est["days"], "added_to_shopping": added}
+
+class ReadExpiryBody(BaseModel):
+    image_base64: str
+
+@api_router.post("/ai/read-expiry")
+async def ai_read_expiry(body: ReadExpiryBody, request: Request):
+    """Read the expiry date (and product name if visible) from a photo of the package."""
+    user = await get_user(request)
+    b64 = body.image_base64.split(",", 1)[1] if body.image_base64.startswith("data:") else body.image_base64
+    today = datetime.now(timezone.utc).date()
+    prompt = (
+        f"Oggi è {today.isoformat()}. Nella foto c'è una confezione di un prodotto. Trova la data di scadenza / 'da consumarsi entro' / 'best before' / EXP / 'da consumarsi preferibilmente entro' / 'Lotto-Scad'. "
+        "Formati possibili: GG/MM/AAAA, GG.MM.AA, MM/AAAA (usa l'ultimo giorno del mese), AAAA-MM-GG, 'MAG 2027' ecc. Se trovi più date scegli quella più plausibile come scadenza (futura). "
+        "Se è visibile anche il nome del prodotto, riportalo. Rispondi SOLO con JSON: "
+        '{"expires_at":"YYYY-MM-DD" oppure null,"raw":"testo della data come appare","name":"nome prodotto oppure null","confidence":0.0-1.0}'
+    )
+    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"exp_ocr_{user['user_id']}_{uuid.uuid4().hex[:6]}", system_message="Sei un OCR preciso per etichette e date di scadenza.").with_model("gemini", "gemini-3-flash-preview")
+    try:
+        text = await chat.send_message(UserMessage(text=prompt, file_contents=[ImageContent(image_base64=b64)]))
+        data = extract_json(text if isinstance(text, str) else str(text)) or {}
+    except Exception as e:
+        logging.error(f"read-expiry err: {e}")
+        raise HTTPException(502, "Lettura non riuscita, riprova con una foto più nitida")
+    exp = data.get("expires_at") if isinstance(data, dict) else None
+    if exp and not re.match(r"^\d{4}-\d{2}-\d{2}$", str(exp)):
+        exp = None
+    return {"expires_at": exp, "raw": (data or {}).get("raw"), "name": (data or {}).get("name"), "confidence": (data or {}).get("confidence")}
 
 @api_router.patch("/pantry/{pid}")
 async def update_pantry(pid: str, request: Request, body: Dict[str, Any]):
@@ -652,24 +747,38 @@ async def delete_pantry(pid: str, request: Request):
     await db.pantry.delete_one({"id": pid, **scope(user)})
     return {"ok": True}
 
+OFF_SOURCES = [
+    ("food", "https://world.openfoodfacts.org/api/v2/product/{code}.json"),
+    ("beauty", "https://world.openbeautyfacts.org/api/v2/product/{code}.json"),
+    ("products", "https://world.openproductsfacts.org/api/v2/product/{code}.json"),
+    ("pet", "https://world.openpetfoodfacts.org/api/v2/product/{code}.json"),
+]
+
 @api_router.get("/products/barcode/{code}")
 async def barcode_lookup(code: str, request: Request):
-    """Look up a product on Open Food Facts."""
+    """Look up a product on Open Food Facts, then Open Beauty Facts / Open Products Facts (toothpaste, detergents, napkins...)."""
     await get_user(request)
     code = re.sub(r"\D", "", code)
     if not code:
         raise HTTPException(400, "codice non valido")
-    url = f"https://world.openfoodfacts.org/api/v2/product/{code}.json"
     params = {"fields": "product_name,product_name_it,brands,image_front_url,image_front_small_url,quantity,categories_tags"}
+    p, source = {}, None
     try:
         async with httpx.AsyncClient(timeout=12, headers={"User-Agent": "SmartKitchenAI/1.0"}) as cx:
-            r = await cx.get(url, params=params)
-        data = r.json() if r.status_code == 200 else {}
+            for src, url in OFF_SOURCES:
+                try:
+                    r = await cx.get(url.format(code=code), params=params)
+                except Exception as e:
+                    logging.warning(f"{src} lookup err: {e}")
+                    continue
+                data = r.json() if r.status_code == 200 else {}
+                if data.get("status") == 1 and data.get("product"):
+                    p, source = data["product"], src
+                    break
     except Exception as e:
-        logging.error(f"OFF lookup err: {e}")
+        logging.error(f"barcode lookup err: {e}")
         raise HTTPException(502, "servizio prodotti non raggiungibile")
-    p = data.get("product") or {}
-    if data.get("status") != 1 or not p:
+    if not p:
         return {"found": False, "barcode": code}
     name = p.get("product_name_it") or p.get("product_name") or ""
     qty, unit = 1, "pz"
@@ -678,9 +787,22 @@ async def barcode_lookup(code: str, request: Request):
         qty = _to_number(qm.group(1)) or 1
         unit = qm.group(2).lower()
     cats = " ".join(p.get("categories_tags") or [])
-    location = "fridge" if any(k in cats for k in ["dairies", "cheeses", "yogurts", "meats", "fresh", "milks", "butters"]) else ("freezer" if "frozen" in cats else "pantry")
+    nf = _guess_nonfood_location(name)
+    if source == "food" and not nf and not any(k in cats for k in ["cosmetic", "hygiene", "cleaning", "non-food"]):
+        kind = "food"
+        location = "fridge" if any(k in cats for k in ["dairies", "cheeses", "yogurts", "meats", "fresh", "milks", "butters"]) else ("freezer" if "frozen" in cats else "pantry")
+    else:
+        kind = "non_food"
+        if source == "beauty" or any(k in cats for k in ["hygiene", "oral", "toothpaste", "shampoo", "soap", "deodorant", "body", "hair", "skin", "diaper"]):
+            location = "hygiene"
+        elif any(k in cats for k in ["cleaning", "detergent", "laundry", "dishwash", "bleach", "household-chemical"]):
+            location = "cleaning"
+        elif any(k in cats for k in ["paper", "napkin", "tissue", "toilet", "disposable", "bags", "foil", "film"]):
+            location = "disposable"
+        else:
+            location = nf or "home"
     return {"found": True, "barcode": code, "name": name.strip(), "brand": p.get("brands") or "",
-            "image_url": p.get("image_front_url") or p.get("image_front_small_url"), "qty": qty, "unit": unit, "location": location}
+            "image_url": p.get("image_front_url") or p.get("image_front_small_url"), "qty": qty, "unit": unit, "location": location, "kind": kind, "source": source}
 
 
 # ---------- Shopping list ----------
@@ -694,6 +816,9 @@ async def list_shopping(request: Request):
 async def create_shopping(body: ShoppingItemCreate, request: Request):
     user = await get_user(request)
     doc = body.model_dump()
+    guessed = guess_aisle(doc["name"])
+    if guessed in ("Pulizia casa", "Igiene e bagno", "Usa e getta") or doc.get("aisle") in (None, "", "Altro"):
+        doc["aisle"] = guessed  # household products always land in their own aisle
     doc.update(owned(user))
     doc["id"] = f"shp_{uuid.uuid4().hex[:12]}"
     doc["created_at"] = datetime.now(timezone.utc)
@@ -815,9 +940,14 @@ async def shopping_to_pantry(body: ToPantryBody, request: Request):
             await db.pantry.update_one({"id": existing["id"]}, {"$set": upd})
             created.append({**existing, **upd})
         else:
+            kind = "non_food" if it.location in NON_FOOD_LOCATIONS else "food"
+            expires, is_est = it.expires_at or None, False
+            if kind == "non_food" and not expires:
+                est = await _estimate_duration(user, s["name"], it.location)
+                expires, is_est = (now.date() + timedelta(days=est["days"])).isoformat(), True
             doc = {"id": f"pan_{uuid.uuid4().hex[:12]}", "name": s["name"], "qty": s.get("qty") or 1, "unit": s.get("unit") or "pz",
-                   "location": it.location, "expires_at": it.expires_at or None, "price": it.price, "barcode": None, "image_url": None,
-                   "created_at": now, **owned(user)}
+                   "location": it.location, "expires_at": expires, "is_estimate": is_est, "kind": kind, "purchased_at": now.date().isoformat(),
+                   "price": it.price, "barcode": None, "image_url": None, "created_at": now, **owned(user)}
             await db.pantry.insert_one(doc)
             doc.pop("_id", None)
             created.append(doc)
@@ -878,6 +1008,8 @@ async def _household_view(user: dict):
     if not h:
         return {"household": None, "members": []}
     members = await db.users.find({"user_id": {"$in": h.get("members", [])}}, {"_id": 0, "user_id": 1, "name": 1, "email": 1, "picture": 1, "diet": 1}).to_list(50)
+    for m in members:
+        m.setdefault("diet", None)
     return {"household": h, "members": members}
 
 async def _attach_docs(user_id: str, hid: Optional[str]):
@@ -1067,7 +1199,7 @@ def _clean_recipe(data: Any, extra_tags: List[str] = []) -> Optional[Dict[str, A
 async def ai_expiring_recipe(request: Request, days: int = 3):
     """ONE anti-waste recipe built around pantry items expiring within `days` days (preview; save with POST /recipes)."""
     user = await get_user(request)
-    exp = (await pantry_expiring(request, days))["items"]
+    exp = [i for i in (await pantry_expiring(request, days))["items"] if i.get("kind") != "non_food"]
     if not exp:
         raise HTTPException(400, "nessun prodotto in scadenza nei prossimi giorni")
     urgent = [f"{i['name']} ({i.get('qty', '')} {i.get('unit', '')})".strip() for i in exp[:12]]

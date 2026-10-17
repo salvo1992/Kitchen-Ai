@@ -3,17 +3,10 @@ import { View, Text, Pressable, Modal, TextInput, ScrollView, ActivityIndicator,
 import Ionicons from "@react-native-vector-icons/ionicons";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/src/api";
-import { categorize } from "@/src/categories";
+import { categorize, LOCATIONS } from "@/src/categories";
 import { DatePicker } from "@/src/components/DatePicker";
 import { makeStyles, useTheme, spacing, radius } from "@/src/theme";
 
-const LOCATIONS = [
-  { key: "pantry", label: "Dispensa", icon: "cube-outline" },
-  { key: "fridge", label: "Frigo", icon: "snow-outline" },
-  { key: "freezer", label: "Freezer", icon: "ice-cream-outline" },
-  { key: "home", label: "Casa", icon: "home-outline" },
-  { key: "disposable", label: "Usa e getta", icon: "trash-bin-outline" },
-];
 
 type Draft = { id: string; name: string; qty: number; unit: string; expires_at: string | null; price: string; location: string };
 
@@ -53,7 +46,7 @@ export function ToPantrySheet({ items, onClose }: { items: any[]; onClose: () =>
   const [idx, setIdx] = useState(0);
   const [drafts, setDrafts] = useState<Draft[]>(() => items.map((i) => ({
     id: i.id, name: i.name, qty: Number(i.qty) || 1, unit: i.unit || "pz", expires_at: null, price: "",
-    location: ["Latticini", "Carne e pesce"].includes(i.aisle) ? "fridge" : i.aisle === "Surgelati" ? "freezer" : categorize(i.name, i.aisle).key === "casa" ? "home" : "pantry",
+    location: ["Latticini", "Carne e pesce"].includes(i.aisle) ? "fridge" : i.aisle === "Surgelati" ? "freezer" : ({ detersivi: "cleaning", igiene: "hygiene", usaegetta: "disposable", casa: "home" } as Record<string, string>)[categorize(i.name, i.aisle).key] || "pantry",
   })));
   const [decisions, setDecisions] = useState<Record<string, "keep" | "skip">>({});
 

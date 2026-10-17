@@ -7,6 +7,8 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { api } from "@/src/api";
+import { LOCATIONS, isFoodLocation, locationLabel } from "@/src/categories";
+import { ExpiryReader } from "@/src/components/ExpiryReader";
 import { makeStyles, useTheme, spacing, radius } from "@/src/theme";
 
 const useStyles = makeStyles((c) => ({
@@ -36,17 +38,12 @@ const useStyles = makeStyles((c) => ({
   locChipActive: { backgroundColor: c.brandTertiary, borderWidth: 1, borderColor: c.brandPrimary },
   locTxt: { color: c.onSurface, fontWeight: "600", fontSize: 13 },
   notFound: { color: c.warning, fontWeight: "600" },
+  kindTag: { alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: c.surface, marginTop: 4 },
+  kindTxt: { fontSize: 11, fontWeight: "700", color: c.brandPrimary },
+  hint: { color: c.muted, fontSize: 12, lineHeight: 17 },
 }));
 
-const LOCATIONS = [
-  { key: "pantry", label: "Dispensa" },
-  { key: "fridge", label: "Frigo" },
-  { key: "freezer", label: "Freezer" },
-  { key: "home", label: "Casa" },
-  { key: "disposable", label: "Usa e getta" },
-];
-
-type Product = { found: boolean; barcode: string; name?: string; brand?: string; image_url?: string | null; qty?: number; unit?: string; location?: string };
+type Product = { found: boolean; barcode: string; name?: string; brand?: string; image_url?: string | null; qty?: number; unit?: string; location?: string; kind?: "food" | "non_food"; source?: string };
 
 export default function ScanBarcode() {
   const styles = useStyles();
@@ -76,7 +73,9 @@ export default function ScanBarcode() {
       if (p.found) {
         setName(p.brand && p.name && !p.name.toLowerCase().includes(p.brand.toLowerCase()) ? `${p.name} ${p.brand}` : p.name || "");
         setQty(String(p.qty ?? 1)); setUnit(p.unit || "pz");
-        if (!params.location && p.location) setLocation(p.location);
+        // non-food (toothpaste, detergents...) always goes to its own section, even if we came from a food tab
+        const nonFood = p.kind === "non_food";
+        if (p.location && (!params.location || nonFood || !isFoodLocation(params.location) !== nonFood)) setLocation(p.location);
       }
     },
     onError: () => setProduct({ found: false, barcode: code }),
@@ -170,6 +169,7 @@ export default function ScanBarcode() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.productName}>{product.name || "Prodotto"}</Text>
                   <Text style={styles.productMeta}>{product.brand ? `${product.brand} · ` : ""}{product.barcode}</Text>
+                  <View style={styles.kindTag}><Text style={styles.kindTxt}>{product.kind === "non_food" ? "🧴 Prodotto per la casa" : "🥫 Alimentare"}</Text></View>
                 </View>
                 <Ionicons name="checkmark-circle" size={22} color={colors.brandPrimary} />
               </View>
@@ -196,13 +196,13 @@ export default function ScanBarcode() {
                 <View style={[styles.row, { flexWrap: "wrap" }]}>
                   {LOCATIONS.map((l) => (
                     <Pressable key={l.key} testID={`scan-loc-${l.key}`} onPress={() => setLocation(l.key)} style={[styles.locChip, { flexBasis: "30%" }, location === l.key && styles.locChipActive]}>
-                      <Text style={styles.locTxt}>{l.label}</Text>
+                      <Text style={styles.locTxt}>{l.emoji} {l.label}</Text>
                     </Pressable>
                   ))}
                 </View>
                 <View style={styles.row}>
                   <View style={{ flex: 2 }}>
-                    <Text style={styles.label}>Scadenza (opzionale)</Text>
+                    <Text style={styles.label}>{isFoodLocation(location) ? "Scadenza (opzionale)" : "Finisce il (se stampata)"}</Text>
                     <TextInput testID="scan-expires" placeholder="YYYY-MM-DD" placeholderTextColor={colors.muted} value={expires} onChangeText={setExpires} style={styles.input} />
                   </View>
                   <View style={{ flex: 1 }}>
@@ -210,13 +210,15 @@ export default function ScanBarcode() {
                     <TextInput testID="scan-price" placeholder="es. 2,50" placeholderTextColor={colors.muted} value={price} onChangeText={setPrice} style={styles.input} keyboardType="decimal-pad" />
                   </View>
                 </View>
+                <ExpiryReader onResult={(r) => { if (r.expires_at) setExpires(r.expires_at); }} />
+                {!isFoodLocation(location) && <Text style={styles.hint}>Senza data stimo io quando finirà e ti avviso prima che manchi; segna “Finito” in Dispensa quando lo esaurisci così imparo quanto dura da te.</Text>}
                 <Pressable
                   testID="scan-save"
                   disabled={!name.trim() || saveM.isPending}
-                  onPress={() => saveM.mutate({ name: name.trim(), qty: parseFloat(qty) || 1, unit: unit || "pz", location, expires_at: expires || null, barcode: code || null, image_url: product?.image_url || null, price: price ? parseFloat(price.replace(",", ".")) || null : null })}
+                  onPress={() => saveM.mutate({ name: name.trim(), qty: parseFloat(qty) || 1, unit: unit || "pz", location, expires_at: expires || null, barcode: code || null, image_url: product?.image_url || null, price: price ? parseFloat(price.replace(",", ".")) || null : null, kind: product?.kind || null })}
                   style={[styles.btn, { marginTop: spacing.sm, opacity: name.trim() ? 1 : 0.5 }]}
                 >
-                  {saveM.isPending ? <ActivityIndicator color={colors.onBrandPrimary} /> : <><Ionicons name="add" size={18} color={colors.onBrandPrimary} /><Text style={styles.btnTxt}>Aggiungi in {LOCATIONS.find((l) => l.key === location)?.label}</Text></>}
+                  {saveM.isPending ? <ActivityIndicator color={colors.onBrandPrimary} /> : <><Ionicons name="add" size={18} color={colors.onBrandPrimary} /><Text style={styles.btnTxt}>Aggiungi in {locationLabel(location)}</Text></>}
                 </Pressable>
               </>
             )}

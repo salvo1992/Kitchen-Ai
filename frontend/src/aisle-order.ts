@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-export const AISLES = ["Frutta e verdura", "Carne e pesce", "Latticini", "Pane e cereali", "Dispensa", "Surgelati", "Bevande", "Altro"];
+export const AISLES = ["Frutta e verdura", "Carne e pesce", "Latticini", "Pane e cereali", "Dispensa", "Surgelati", "Bevande", "Pulizia casa", "Igiene e bagno", "Usa e getta", "Altro"];
 const KEY = "smartkitchen_aisle_order_v1";
 
 export async function loadAisleOrder(): Promise<string[]> {

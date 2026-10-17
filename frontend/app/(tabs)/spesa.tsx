@@ -7,10 +7,11 @@ import { useMemo, useState, useCallback } from "react";
 import { api } from "@/src/api";
 import { usePullRefresh } from "@/src/use-pull-refresh";
 import { useAisleOrder, AISLES } from "@/src/aisle-order";
-import { categorize, aisleCategory } from "@/src/categories";
+import { categorize, aisleCategory, categoryAisle } from "@/src/categories";
 import { ToPantrySheet } from "@/src/components/ToPantrySheet";
 import { makeStyles, useTheme, spacing, radius } from "@/src/theme";
 import { useRouter, useFocusEffect } from "expo-router";
+import { GradientHeader, Enter, Bounce } from "@/src/components/ui";
 
 const useStyles = makeStyles((c) => ({
   root: { flex: 1, backgroundColor: c.surface },
@@ -18,8 +19,8 @@ const useStyles = makeStyles((c) => ({
   title: { fontSize: 26, fontWeight: "700", color: c.onSurface, letterSpacing: -0.5 },
   sub: { color: c.muted, marginTop: 2 },
   actions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md, flexWrap: "wrap" },
-  actionBtn: { flexDirection: "row", gap: 6, alignItems: "center", backgroundColor: c.surfaceSecondary, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 8 },
-  actionTxt: { color: c.onSurface, fontSize: 13, fontWeight: "600" },
+  actionBtn: { flexDirection: "row", gap: 6, alignItems: "center", backgroundColor: "rgba(255,255,255,0.18)", borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 8 },
+  actionTxt: { color: c.onBrandPrimary, fontSize: 13, fontWeight: "700" },
   aisleHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: 6 },
   aisleBadge: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
   aisleTitle: { fontWeight: "800", fontSize: 13, letterSpacing: 0.5, textTransform: "uppercase" },
@@ -55,6 +56,12 @@ export default function Spesa() {
   const [qty, setQty] = useState("1");
   const [unit, setUnit] = useState("pz");
   const [aisle, setAisle] = useState(AISLES[0]);
+  const [aisleTouched, setAisleTouched] = useState(false);
+  // auto-pick the aisle from the product name (detersivo → Pulizia casa) until the user chooses one by hand
+  const onNameChange = (t: string) => {
+    setName(t);
+    if (!aisleTouched) { const a = categoryAisle(categorize(t).key); if (a) setAisle(a); }
+  };
   const router = useRouter();
   const { order: aisleOrder, reload: reloadOrder } = useAisleOrder();
   useFocusEffect(useCallback(() => { reloadOrder(); }, [reloadOrder]));
@@ -134,49 +141,45 @@ export default function Spesa() {
 
   return (
     <View style={styles.root}>
-      <View style={{ paddingTop: insets.top + spacing.sm }}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Lista spesa</Text>
-          <Text style={styles.sub}>{(listQ.data || []).length} articoli · {totalChecked} presi</Text>
+      <GradientHeader title="Lista spesa" subtitle={`${(listQ.data || []).length} articoli · ${totalChecked} presi`} paddingTop={insets.top}>
           <View style={styles.actions}>
             {openCount > 0 && (
               <>
                 <Pressable testID="share-list" style={styles.actionBtn} onPress={shareList}>
-                  <Ionicons name="share-social-outline" size={16} color={colors.brandPrimary} />
+                  <Ionicons name="share-social-outline" size={16} color={colors.onBrandPrimary} />
                   <Text style={styles.actionTxt}>Condividi</Text>
                 </Pressable>
                 {Platform.OS !== "web" && (
                   <Pressable testID="share-whatsapp" style={styles.actionBtn} onPress={shareWhatsApp}>
-                    <Ionicons name="logo-whatsapp" size={16} color={colors.brandPrimary} />
+                    <Ionicons name="logo-whatsapp" size={16} color={colors.onBrandPrimary} />
                     <Text style={styles.actionTxt}>WhatsApp</Text>
                   </Pressable>
                 )}
                 <Pressable testID="copy-list" style={styles.actionBtn} onPress={copyList}>
-                  <Ionicons name={copied ? "checkmark" : "copy-outline"} size={16} color={colors.brandPrimary} />
+                  <Ionicons name={copied ? "checkmark" : "copy-outline"} size={16} color={colors.onBrandPrimary} />
                   <Text style={styles.actionTxt}>{copied ? "Copiata!" : "Copia"}</Text>
                 </Pressable>
               </>
             )}
             {totalChecked > 0 && (
               <Pressable testID="clear-checked" style={styles.actionBtn} onPress={() => setToPantry((listQ.data || []).filter((x: any) => x.checked))}>
-                <Ionicons name="checkmark-done" size={16} color={colors.brandPrimary} />
+                <Ionicons name="checkmark-done" size={16} color={colors.onBrandPrimary} />
                 <Text style={styles.actionTxt}>Presi → Dispensa</Text>
               </Pressable>
             )}
             <Pressable testID="aisle-order-btn" style={styles.actionBtn} onPress={() => router.push("/aisle-order")}>
-              <Ionicons name="swap-vertical" size={16} color={colors.brandSecondary} />
+              <Ionicons name="swap-vertical" size={16} color={colors.onBrandPrimary} />
               <Text style={styles.actionTxt}>Ordine corsie</Text>
             </Pressable>
           </View>
-        </View>
-      </View>
+      </GradientHeader>
 
       <FlatList
         data={flat}
         keyExtractor={(x) => x.id}
         contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
         refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} />}
-        renderItem={({ item }) => {
+        renderItem={({ item, index }) => {
           if (item._header) {
             const hc = aisleCategory(item._header);
             return (
@@ -189,6 +192,7 @@ export default function Spesa() {
           }
           const cat = categorize(item.name, item.aisle);
           return (
+            <Enter index={index}>
             <Pressable testID={`shop-row-${item.id}`} style={styles.row} onPress={() => toggle.mutate(item)}>
               <View style={[styles.rowCard, { backgroundColor: item.checked ? colors.surfaceSecondary : cat.bg }]}>
                 <View style={[styles.check, item.checked && styles.checkActive, !item.checked && { borderColor: cat.color }]}>
@@ -204,6 +208,7 @@ export default function Spesa() {
                 </Pressable>
               </View>
             </Pressable>
+            </Enter>
           );
         }}
         ListEmptyComponent={
@@ -214,16 +219,16 @@ export default function Spesa() {
         }
       />
 
-      <Pressable testID="add-shop-fab" onPress={() => setShowAdd(true)} style={[styles.fab, { bottom: insets.bottom + 100 }]}>
+      <Bounce testID="add-shop-fab" onPress={() => setShowAdd(true)} style={[styles.fab, { bottom: insets.bottom + 100 }]}>
         <Ionicons name="add" size={28} color={colors.onBrandPrimary} />
-      </Pressable>
+      </Bounce>
 
       <Modal visible={showAdd} animationType="slide" transparent onRequestClose={() => setShowAdd(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
           <Pressable style={styles.modalBg} onPress={() => setShowAdd(false)}>
             <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
               <Text style={{ fontSize: 18, fontWeight: "700", color: colors.onSurface }}>Aggiungi alla spesa</Text>
-              <TextInput testID="shop-name" placeholder="Articolo" placeholderTextColor={colors.muted} value={name} onChangeText={setName} style={styles.input} />
+              <TextInput testID="shop-name" placeholder="Articolo (es. mele, detersivo, dentifricio)" placeholderTextColor={colors.muted} value={name} onChangeText={onNameChange} style={styles.input} />
               <View style={{ flexDirection: "row", gap: spacing.sm }}>
                 <TextInput testID="shop-qty" placeholder="Q.tà" placeholderTextColor={colors.muted} value={qty} onChangeText={setQty} style={[styles.input, { flex: 1 }]} keyboardType="numeric" />
                 <TextInput testID="shop-unit" placeholder="Unità" placeholderTextColor={colors.muted} value={unit} onChangeText={setUnit} style={[styles.input, { flex: 1 }]} />
@@ -235,7 +240,7 @@ export default function Spesa() {
                 keyExtractor={(x) => x}
                 contentContainerStyle={{ gap: spacing.sm }}
                 renderItem={({ item }) => (
-                  <Pressable testID={`aisle-${item}`} onPress={() => setAisle(item)} style={[styles.aisleChip, { flexDirection: "row", gap: 4 }, aisle === item && styles.aisleChipActive]}>
+                  <Pressable testID={`aisle-${item}`} onPress={() => { setAisle(item); setAisleTouched(true); }} style={[styles.aisleChip, { flexDirection: "row", gap: 4 }, aisle === item && styles.aisleChipActive]}>
                     <Text style={{ fontSize: 13 }}>{aisleCategory(item).emoji}</Text>
                     <Text style={styles.aisleChipTxt}>{item}</Text>
                   </Pressable>

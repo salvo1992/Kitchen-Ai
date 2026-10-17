@@ -12,6 +12,7 @@ import { syncExpiryReminder } from "@/src/reminders";
 import { CATEGORIES } from "@/src/categories";
 import { ExpiringRecipeCard } from "@/src/components/ExpiringRecipeCard";
 import { useMembers, memberLabel } from "@/src/use-members";
+import { Appear, Enter, Bounce } from "@/src/components/ui";
 import { usePullRefresh } from "@/src/use-pull-refresh";
 import { makeStyles, useTheme, spacing, radius } from "@/src/theme";
 
@@ -25,10 +26,13 @@ const HERO_IMAGES: Record<string, string> = {
 const useStyles = makeStyles((c) => ({
   root: { flex: 1, backgroundColor: c.surface },
   scroll: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
-  greetRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.md },
-  greet: { fontSize: 26, fontWeight: "700", color: c.onSurface, letterSpacing: -0.5 },
-  greetSub: { color: c.muted, fontSize: 14, marginTop: 2 },
-  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: c.brandTertiary, alignItems: "center", justifyContent: "center" },
+  hero: { borderRadius: 24, padding: spacing.lg, marginBottom: spacing.lg, overflow: "hidden" },
+  heroBlob: { position: "absolute", width: 160, height: 160, borderRadius: 80, backgroundColor: "rgba(255,255,255,0.10)", right: -50, top: -60 },
+  heroBlob2: { position: "absolute", width: 90, height: 90, borderRadius: 45, backgroundColor: c.brandSecondary, opacity: 0.4, right: 60, bottom: -40 },
+  greetRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  greet: { fontSize: 26, fontWeight: "800", color: c.onBrandPrimary, letterSpacing: -0.5 },
+  greetSub: { color: c.onBrandPrimary, opacity: 0.85, fontSize: 14, marginTop: 4 },
+  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(255,255,255,0.22)", alignItems: "center", justifyContent: "center" },
   kpi: { backgroundColor: c.surfaceSecondary, borderRadius: radius.lg, padding: spacing.lg, flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.xl },
   kpiIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: c.brandTertiary, alignItems: "center", justifyContent: "center" },
   kpiTitle: { fontWeight: "700", color: c.onSurface, fontSize: 15 },
@@ -112,7 +116,9 @@ export default function Oggi() {
   });
   const pull = usePullRefresh(() => Promise.all([mealsQ.refetch(), expiringQ.refetch(), shopQ.refetch(), statsQ.refetch()]));
 
-  const expiring = useMemo(() => expiringQ.data || [], [expiringQ.data]);
+  // food only: household products (detergents, napkins...) have an estimated run-out date, not a food expiry
+  const expiring = useMemo(() => (expiringQ.data || []).filter((i: any) => i.kind !== "non_food"), [expiringQ.data]);
+  const runningOut = useMemo(() => (expiringQ.data || []).filter((i: any) => i.kind === "non_food"), [expiringQ.data]);
   const expiringCount = expiring.length;
   useEffect(() => {
     if (expiringQ.data) syncExpiryReminder(expiringQ.data).catch(() => {});
@@ -140,17 +146,24 @@ export default function Oggi() {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} />}
       >
-        <View style={styles.greetRow}>
-          <View>
-            <Text style={styles.greet}>{greetingText()}{user?.name ? "," : ""}</Text>
-            {user?.name ? <Text style={[styles.greet, { color: colors.brandSecondary }]}>{user.name} 👋</Text> : null}
-            <Text style={styles.greetSub}>Cosa cuciniamo oggi?</Text>
-          </View>
-          <Pressable testID="settings-btn" onPress={() => router.push("/settings")} style={styles.avatar}>
-            <Ionicons name="settings-outline" size={20} color={colors.brandPrimary} />
-          </Pressable>
-        </View>
+        <Appear>
+          <LinearGradient colors={[colors.brand, colors.brandPrimary]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.hero}>
+            <View style={styles.heroBlob} pointerEvents="none" />
+            <View style={styles.heroBlob2} pointerEvents="none" />
+            <View style={styles.greetRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.greet}>{greetingText()}{user?.name ? "," : ""}</Text>
+                {user?.name ? <Text style={styles.greet}>{user.name} 👋</Text> : null}
+                <Text style={styles.greetSub}>Cosa cuciniamo oggi?</Text>
+              </View>
+              <Bounce testID="settings-btn" onPress={() => router.push("/settings")} style={styles.avatar}>
+                <Ionicons name="settings-outline" size={20} color={colors.onBrandPrimary} />
+              </Bounce>
+            </View>
+          </LinearGradient>
+        </Appear>
 
+        <Enter index={1}>
         <Pressable testID="kpi-expiring" style={[styles.kpi, expiringCount > 0 && { backgroundColor: colors.brandTertiary, borderWidth: 1, borderColor: colors.brandSecondary }]} onPress={() => router.push("/(tabs)/dispensa")}>
           <View style={[styles.kpiIcon, expiringCount > 0 && { backgroundColor: colors.brandSecondary }]}>
             <Ionicons name={expiringCount > 0 ? "alert" : "time-outline"} size={22} color={expiringCount > 0 ? colors.onBrandSecondary : colors.brandSecondary} />
@@ -165,8 +178,20 @@ export default function Oggi() {
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors.muted} />
         </Pressable>
+        </Enter>
 
-        {expiringCount > 0 && <ExpiringRecipeCard items={expiring} />}
+        {expiringCount > 0 && <Enter index={2}><ExpiringRecipeCard items={expiring} /></Enter>}
+
+        {runningOut.length > 0 && (
+          <Pressable testID="kpi-running-out" style={[styles.kpi, { marginTop: -spacing.md }]} onPress={() => router.push("/(tabs)/dispensa")}>
+            <View style={styles.kpiIcon}><Text style={{ fontSize: 20 }}>🧴</Text></View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.kpiTitle}>{runningOut.length} {runningOut.length === 1 ? "prodotto per la casa sta finendo" : "prodotti per la casa stanno finendo"}</Text>
+              <Text style={styles.kpiSub} numberOfLines={2}>{runningOut.slice(0, 3).map((i: any) => i.name).join(" · ")}{runningOut.length > 3 ? ` +${runningOut.length - 3}` : ""} · segna “Finito” o rimettili in lista</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+          </Pressable>
+        )}
 
         <View style={styles.section}>
           <View style={styles.sectionHead}>
@@ -220,6 +245,7 @@ export default function Oggi() {
         </View>
 
         {statsQ.data && (
+          <Enter index={4}>
           <Pressable style={styles.stats} testID="waste-stats" onPress={() => router.push("/history")}>
             <View style={styles.statsHead}>
               <Ionicons name="leaf" size={18} color={colors.brandPrimary} />
@@ -240,41 +266,42 @@ export default function Oggi() {
                   : "Ottimo lavoro: nessun prodotto scaduto in dispensa!"}
             </Text>
           </Pressable>
+          </Enter>
         )}
 
         <View style={styles.section}>
           <View style={styles.sectionHead}><Text style={styles.sectionTitle}>Scorciatoie</Text></View>
           <View style={styles.quickRow}>
-            <Pressable testID="quick-plan" style={styles.quick} onPress={() => router.push("/weekly-plan")}>
+            <Bounce scale={0.96} testID="quick-plan" style={styles.quick} onPress={() => router.push("/weekly-plan")}>
               <View style={[styles.quickIcon, { backgroundColor: colors.brandSecondary }]}><Ionicons name="calendar" size={20} color={colors.onBrandSecondary} /></View>
               <Text style={styles.quickTitle}>Piano settimanale</Text>
               <Text style={styles.quickSub}>7 giorni con Chef AI</Text>
-            </Pressable>
-            <Pressable testID="quick-scan" style={styles.quick} onPress={() => router.push("/scan-barcode")}>
+            </Bounce>
+            <Bounce scale={0.96} testID="quick-scan" style={styles.quick} onPress={() => router.push("/scan-barcode")}>
               <View style={[styles.quickIcon, { backgroundColor: CATEGORIES.pesce.bg }]}><Ionicons name="barcode" size={20} color={CATEGORIES.pesce.color} /></View>
               <Text style={styles.quickTitle}>Scansiona</Text>
               <Text style={styles.quickSub}>Aggiungi in dispensa</Text>
-            </Pressable>
-            <Pressable testID="quick-cook" style={styles.quick} onPress={() => router.push("/what-can-i-cook")}>
+            </Bounce>
+            <Bounce scale={0.96} testID="quick-cook" style={styles.quick} onPress={() => router.push("/what-can-i-cook")}>
               <View style={[styles.quickIcon, { backgroundColor: CATEGORIES.verdura.bg }]}><Ionicons name="restaurant" size={20} color={CATEGORIES.verdura.color} /></View>
               <Text style={styles.quickTitle}>Cosa cucino?</Text>
               <Text style={styles.quickSub}>Idee dalla dispensa</Text>
-            </Pressable>
-            <Pressable testID="quick-list" style={styles.quick} onPress={() => router.push("/(tabs)/spesa")}>
+            </Bounce>
+            <Bounce scale={0.96} testID="quick-list" style={styles.quick} onPress={() => router.push("/(tabs)/spesa")}>
               <View style={[styles.quickIcon, { backgroundColor: CATEGORIES.frutta.bg }]}><Ionicons name="cart" size={20} color={CATEGORIES.frutta.color} /></View>
               <Text style={styles.quickTitle}>Lista spesa</Text>
               <Text style={styles.quickSub}>{(shopQ.data || []).filter((x: any) => !x.checked).length} da comprare</Text>
-            </Pressable>
-            <Pressable testID="quick-import" style={styles.quick} onPress={() => router.push("/import-photo")}>
+            </Bounce>
+            <Bounce scale={0.96} testID="quick-import" style={styles.quick} onPress={() => router.push("/import-photo")}>
               <View style={[styles.quickIcon, { backgroundColor: CATEGORIES.dolci.bg }]}><Ionicons name="camera" size={20} color={CATEGORIES.dolci.color} /></View>
               <Text style={styles.quickTitle}>Importa piano</Text>
               <Text style={styles.quickSub}>Da foto con AI</Text>
-            </Pressable>
-            <Pressable testID="quick-recipe" style={styles.quick} onPress={() => router.push("/add-recipe")}>
+            </Bounce>
+            <Bounce scale={0.96} testID="quick-recipe" style={styles.quick} onPress={() => router.push("/add-recipe")}>
               <View style={[styles.quickIcon, { backgroundColor: CATEGORIES.formaggi.bg }]}><Ionicons name="book" size={20} color={CATEGORIES.formaggi.color} /></View>
               <Text style={styles.quickTitle}>Nuova ricetta</Text>
               <Text style={styles.quickSub}>Salva nel ricettario</Text>
-            </Pressable>
+            </Bounce>
           </View>
         </View>
       </ScrollView>

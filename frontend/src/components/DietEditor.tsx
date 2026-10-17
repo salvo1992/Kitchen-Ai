@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, Text, Pressable, Modal, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, Pressable, Modal, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
 import Ionicons from "@react-native-vector-icons/ionicons";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/src/api";
@@ -11,7 +11,7 @@ const useStyles = makeStyles((c) => ({
   rowTxt: { flex: 1, color: c.onSurface, fontWeight: "600" },
   rowSub: { color: c.muted, fontSize: 12, marginTop: 2 },
   bg: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: c.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.xl, gap: spacing.md },
+  sheet: { backgroundColor: c.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.xl, maxHeight: "88%" },
   title: { fontSize: 18, fontWeight: "700", color: c.onSurface },
   sub: { color: c.muted, fontSize: 13, lineHeight: 18 },
   input: { backgroundColor: c.surfaceSecondary, borderRadius: radius.md, padding: spacing.md, color: c.onSurface, minHeight: 110, textAlignVertical: "top" },
@@ -57,6 +57,7 @@ export function DietEditor() {
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
           <Pressable style={styles.bg} onPress={() => setOpen(false)}>
             <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()} testID="diet-sheet">
+              <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: spacing.md }}>
               <View style={{ flexDirection: "row", alignItems: "center" }}>
                 <Text style={[styles.title, { flex: 1 }]}>La mia dieta / preferenze</Text>
                 <Pressable onPress={() => setOpen(false)} testID="diet-close"><Ionicons name="close" size={24} color={colors.muted} /></Pressable>
@@ -73,7 +74,7 @@ export function DietEditor() {
               />
               <View style={styles.chips}>
                 {CHIPS.map((c) => (
-                  <Pressable key={c} testID={`diet-chip-${c}`} onPress={() => setText((t) => (t.trim() ? `${t.trim()}, ${c}` : c))} style={styles.chip}><Text style={styles.chipTxt}>+ {c}</Text></Pressable>
+                  <Pressable key={c} testID={`diet-chip-${c}`} onPress={() => setText((t) => (t.toLowerCase().includes(c.toLowerCase()) ? t : t.trim() ? `${t.trim()}, ${c}` : c))} style={styles.chip}><Text style={styles.chipTxt}>+ {c}</Text></Pressable>
                 ))}
               </View>
               <Pressable testID="diet-save" style={styles.btn} onPress={() => saveM.mutate(text.trim())} disabled={saveM.isPending}>
@@ -86,6 +87,7 @@ export function DietEditor() {
                 </Pressable>
               )}
               {saveM.isError && <Text style={{ color: colors.error, fontSize: 13 }}>{(saveM.error as any)?.message || "Errore, riprova"}</Text>}
+              </ScrollView>
             </Pressable>
           </Pressable>
         </KeyboardAvoidingView>

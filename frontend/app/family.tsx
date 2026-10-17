@@ -128,8 +128,9 @@ export default function Family() {
             </View>
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Membri ({hQ.data?.members.length || 0})</Text>
+              <Text style={[styles.memberMail, { marginBottom: 6 }]}>Tocca un membro per vedere i suoi pasti della settimana</Text>
               {hQ.data?.members.map((m) => (
-                <View key={m.user_id} style={styles.member} testID={`member-${m.user_id}`}>
+                <Pressable key={m.user_id} style={styles.member} testID={`member-${m.user_id}`} onPress={() => router.push({ pathname: "/calendar", params: { member: m.user_id } })}>
                   <View style={styles.avatar}><Ionicons name="person" size={18} color={colors.brandPrimary} /></View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.memberName}>{m.name || m.email}</Text>
@@ -138,7 +139,8 @@ export default function Family() {
                   </View>
                   {m.user_id === user?.user_id && <Text style={styles.you}>TU</Text>}
                   {m.user_id === h.owner_id && <Ionicons name="star" size={14} color={colors.brandSecondary} />}
-                </View>
+                  <Ionicons name="calendar-outline" size={18} color={colors.muted} style={{ marginLeft: 6 }} />
+                </Pressable>
               ))}
             </View>
             <Pressable testID="family-leave" onPress={confirmLeave} style={styles.leave} disabled={leaveM.isPending}>

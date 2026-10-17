@@ -2,12 +2,13 @@ import { View, Text, ScrollView, Pressable, ActivityIndicator } from "react-nati
 import Ionicons from "@react-native-vector-icons/ionicons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useMemo, useState } from "react";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { useMembers, memberLabel } from "@/src/use-members";
 import { MealEditor, ALL_SLOTS, SLOT_ICON, SLOT_LABEL } from "@/src/components/MealEditor";
+import { Appear, Enter } from "@/src/components/ui";
 import { makeStyles, useTheme, spacing, radius } from "@/src/theme";
 
 const useStyles = makeStyles((c) => ({
@@ -29,6 +30,14 @@ const useStyles = makeStyles((c) => ({
   shopBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, backgroundColor: c.brandPrimary, borderRadius: radius.pill, paddingVertical: 12 },
   shopBtnTxt: { color: c.onBrandPrimary, fontWeight: "700" },
   shopRes: { color: c.onBrandTertiary, fontSize: 13, textAlign: "center" },
+  memberRow: { paddingHorizontal: spacing.lg, gap: spacing.sm, paddingBottom: spacing.md },
+  memberChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: radius.pill, backgroundColor: c.surfaceSecondary },
+  memberChipOn: { backgroundColor: c.brandPrimary },
+  memberTxt: { color: c.onSurface, fontWeight: "700", fontSize: 13 },
+  avatar: { width: 20, height: 20, borderRadius: 10, backgroundColor: c.brandSecondary, alignItems: "center", justifyContent: "center" },
+  avatarTxt: { color: c.onBrandSecondary, fontSize: 11, fontWeight: "800" },
+  memberBanner: { marginHorizontal: spacing.lg, marginBottom: spacing.md, backgroundColor: c.brandTertiary, borderRadius: radius.md, padding: spacing.md },
+  memberBannerTxt: { color: c.onBrandTertiary, fontSize: 13, lineHeight: 18 },
 }));
 
 function ymd(d: Date) { return d.toISOString().slice(0, 10); }
@@ -50,14 +59,20 @@ export default function Calendar() {
     queryFn: async () => (await api<{ items: any[] }>(`/api/meals?start=${startStr}&end=${endStr}`)).items,
   });
 
-  const grouped: Record<string, any[]> = {};
-  for (const m of q.data || []) (grouped[m.date] = grouped[m.date] || []).push(m);
-
   const weekEnd = ymd(days[6]);
   const weekRecipeMeals = (q.data || []).filter((m: any) => m.recipe_id && m.date <= weekEnd).length;
   const qc = useQueryClient();
   const { user } = useAuth();
   const { members, hasFamily } = useMembers();
+  const params = useLocalSearchParams<{ member?: string }>();
+  // Member filter: "Tutti" shows everything; a member shows their personal meals + the shared family meals.
+  const [viewMember, setViewMember] = useState<string | null>(params.member || null);
+  const grouped: Record<string, any[]> = {};
+  for (const m of q.data || []) {
+    if (viewMember && m.member_id && m.member_id !== viewMember) continue;
+    (grouped[m.date] = grouped[m.date] || []).push(m);
+  }
+  const viewMemberObj = members.find((m) => m.user_id === viewMember);
   const [editing, setEditing] = useState<{ date: string; slot: string; meal?: any; memberId: string | null } | null>(null);
   const shopM = useMutation({
     mutationFn: () => api<{ added: any[]; in_pantry: string[]; already_listed: string[] }>("/api/meals/to-shopping", { method: "POST", body: JSON.stringify({ start: startStr, end: weekEnd }) }),
@@ -73,6 +88,29 @@ export default function Calendar() {
         <Pressable testID="add-meal-cal" onPress={() => router.push("/add-meal")}><Ionicons name="add-circle" size={28} color={colors.brandPrimary} /></Pressable>
       </View>
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
+        {hasFamily && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.memberRow} testID="calendar-members">
+            <Pressable testID="cal-member-all" onPress={() => setViewMember(null)} style={[styles.memberChip, !viewMember && styles.memberChipOn]}>
+              <Ionicons name="people" size={14} color={!viewMember ? colors.onBrandPrimary : colors.muted} />
+              <Text style={[styles.memberTxt, !viewMember && { color: colors.onBrandPrimary }]}>Tutti</Text>
+            </Pressable>
+            {members.map((m) => {
+              const on = viewMember === m.user_id;
+              return (
+                <Pressable key={m.user_id} testID={`cal-member-${m.user_id}`} onPress={() => setViewMember(on ? null : m.user_id)} style={[styles.memberChip, on && styles.memberChipOn]}>
+                  <View style={[styles.avatar, on && { backgroundColor: colors.onBrandPrimary }]}><Text style={[styles.avatarTxt, on && { color: colors.brandPrimary }]}>{(m.name || m.email)[0].toUpperCase()}</Text></View>
+                  <Text style={[styles.memberTxt, on && { color: colors.onBrandPrimary }]}>{memberLabel(m, user?.user_id)}</Text>
+                  {!!(m.diet || "").trim() && <Ionicons name="leaf" size={12} color={on ? colors.onBrandPrimary : colors.brandPrimary} />}
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        )}
+        {viewMemberObj && (
+          <Appear style={styles.memberBanner}>
+            <Text style={styles.memberBannerTxt}>I pasti di <Text style={{ fontWeight: "800" }}>{memberLabel(viewMemberObj, user?.user_id)}</Text>: i suoi piatti personali più quelli di famiglia.{(viewMemberObj.diet || "").trim() ? `\n🌿 Dieta: ${viewMemberObj.diet}` : ""}</Text>
+          </Appear>
+        )}
         {weekRecipeMeals > 0 && (
           <View style={styles.shopBar} testID="week-shop-bar">
             <Text style={{ color: colors.onBrandTertiary, fontWeight: "700" }}>Spesa della settimana</Text>
@@ -94,11 +132,12 @@ export default function Calendar() {
             {shopM.isError && <Text style={[styles.shopRes, { color: colors.error }]}>Errore, riprova</Text>}
           </View>
         )}
-        {days.map((d) => {
+        {days.map((d, di) => {
           const key = ymd(d);
           const meals = grouped[key] || [];
           return (
-            <View key={key} testID={`day-${key}`} style={styles.day}>
+            <Enter key={`${key}-${viewMember || "all"}`} index={di}>
+            <View testID={`day-${key}`} style={styles.day}>
               <Text style={styles.dayLabel}>{DAY_NAMES[d.getDay()]} {d.getDate()}/{d.getMonth() + 1}</Text>
               {ALL_SLOTS.map((slot) => {
                 const inSlot = meals.filter((x: any) => x.slot === slot).sort((a: any, b: any) => (a.member_id ? 1 : 0) - (b.member_id ? 1 : 0));
@@ -108,11 +147,11 @@ export default function Calendar() {
                       <Ionicons name={SLOT_ICON[slot] as any} size={14} color={inSlot.length ? colors.brandPrimary : colors.muted} />
                       <Text style={styles.slotLabel}>{SLOT_LABEL[slot]}</Text>
                       {inSlot.length === 0 && (
-                        <Pressable testID={`empty-${key}-${slot}`} style={{ flex: 1 }} onPress={() => setEditing({ date: key, slot, memberId: null })}>
+                        <Pressable testID={`empty-${key}-${slot}`} style={{ flex: 1 }} onPress={() => setEditing({ date: key, slot, memberId: viewMember })}>
                           <Text style={[styles.slotTitle, { color: colors.muted, fontStyle: "italic", fontWeight: "400" }]}>aggiungi…</Text>
                         </Pressable>
                       )}
-                      <Pressable testID={`edit-${key}-${slot}`} onPress={() => setEditing({ date: key, slot, memberId: null })} style={{ padding: 4 }} hitSlop={6}>
+                      <Pressable testID={`edit-${key}-${slot}`} onPress={() => setEditing({ date: key, slot, memberId: viewMember })} style={{ padding: 4 }} hitSlop={6}>
                         <Ionicons name="add-circle-outline" size={18} color={colors.brandSecondary} />
                       </Pressable>
                     </View>
@@ -139,6 +178,7 @@ export default function Calendar() {
                 );
               })}
             </View>
+            </Enter>
           );
         })}
       </ScrollView>

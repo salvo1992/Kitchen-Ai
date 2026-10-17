@@ -107,3 +107,12 @@
   POST /api/ai/weekly-plan/save accetta `member_plans:[{member_id, days}]` → meals con member_id; /api/ai/recipe accetta `member_id` (rispetta la dieta); /api/household members include `diet`; signin ritorna anche diet/household_id.
 - Frontend: Impostazioni → "La mia dieta / preferenze" (DietEditor); Oggi → ExpiringRecipeCard (Chiedi al Chef → preview → Metti nel menu di oggi / Salva ricetta); Calendario → più pasti per slot con tag Tutti/membro,
   MealEditor con selettore "Per chi?" quando c'è famiglia; Piano settimanale → sezioni "Menu della famiglia" + "Menu di <membro>"; Famiglia → dieta sotto ogni membro.
+
+## Iteration 15 (main agent) — Dispensa non-food, OCR scadenza, calendario per membro, UI refresh
+- Backend: pantry `kind` (food|non_food), locations cleaning|hygiene|disposable|home; non-food senza data → `expires_at` stimato (`is_estimate`, `estimate_source`, DEFAULT_DURATION_DAYS) ;
+  GET /api/pantry/duration-estimate?name&location; POST /api/pantry/{id}/finished → impara durata (product_durations), qty 0, rimette in spesa; POST /api/ai/read-expiry {image_base64} → {expires_at};
+  barcode: fallback Open Food Facts → Open Beauty Facts → Open Products Facts → Open Pet Food Facts, ritorna kind/location; guess_aisle con corsie "Pulizia casa", "Igiene e bagno", "Usa e getta" (prioritarie);
+  POST /api/shopping forza corsia non-food; /api/household members hanno sempre `diet`; ai/expiring-recipe usa solo alimentari.
+- Frontend: categories.ts (detersivi/igiene/usaegetta + LOCATIONS condivise), aisle-order AISLES +3; Dispensa riscritta (7 sezioni, header gradient, badge "~Xg"/"finisce circa il", bottone Finito, ExpiryReader);
+  scan-barcode (sezioni nuove, tag alimentare/casa, ExpiryReader); ToPantrySheet usa LOCATIONS; Calendario: chip membri (cal-member-all / cal-member-<id>) + ?member= da Famiglia (tap membro);
+  UI: src/components/ui.tsx (GradientHeader, Enter, Appear, Bounce) applicati a Oggi/Ricette/Dispensa/Spesa/Calendario; Oggi KPI "prodotti per la casa stanno finendo" (kpi-running-out); Spesa auto-corsia dal nome.

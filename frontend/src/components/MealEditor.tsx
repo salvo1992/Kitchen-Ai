@@ -128,7 +128,7 @@ export function MealEditor({ visible, onClose, date, slot, currentTitle, members
                 ))}
               </View>
             )}
-            {hasFamily && whoDiet && tab === "ai" && <Text style={styles.dietHint} numberOfLines={2}>🌿 Chef AI rispetterà la dieta di {memberLabel(whoMember, user?.user_id)}: {whoDiet}</Text>}
+            {hasFamily && !!whoDiet && tab === "ai" && <Text style={styles.dietHint} numberOfLines={2}>🌿 Chef AI rispetterà la dieta di {memberLabel(whoMember, user?.user_id)}: {whoDiet}</Text>}
 
             <ScrollView style={{ maxHeight: 420 }} keyboardShouldPersistTaps="handled">
               {tab === "ai" && (
