@@ -113,3 +113,32 @@ Frontend: EXPO_PUBLIC_BACKEND_URL
 - Corsie spesa: Pulizia casa, Igiene e bagno, Usa e getta (auto dal nome, forzate lato backend).
 - Calendario: chip membri (Tutti / per membro) con pasti personali + di famiglia; da Famiglia tocca un membro → calendario filtrato.
 - UI: header gradient coi colori del logo (salvia/crema/terracotta), animazioni d'ingresso e feedback pressione (src/components/ui.tsx) su Oggi, Ricette, Dispensa, Spesa, Calendario.
+
+## Shop & Accademia — iterations 16–19 (2026-10-18)
+### User choices / scope
+- RevenueCat managed connection confirmed. Coach EUR4.99/month; Ricettario PDF EUR4.99/export, Freezer lifetime EUR5.99, Lab EUR3.99–7.99/module, courses marketplace requested.
+- Work on Shop first; barcode→expiry camera, household auto-reorder, nutrition/macros remain deferred.
+- Two MVP options selected together. Implemented subscription Coach plus course foundation; single-purchase products remain unavailable, NOT represented as completed.
+- Managed RevenueCat supports subscriptions only, not lifetime/consumable/individual-course purchases. No Stripe or invented purchase grants.
+### Architecture / implementation
+- RevenueCat project provisioned, entitlement pro, default offering monthly only. Keys only in frontend/.env; app.config.js via Constants, direct EXPO_PUBLIC fallback for web manifest compatibility. Details: memory/revenuecat.md.
+- src/purchases.tsx: module-scope SDK configure in root, serialized login/logout/purchase/restore stable backend user_id, immediate account isolation, CustomerInfo listener/foreground refresh, error gates. Verify CURRENT SDK getAppUserID + !isAnonymous; originalAppUserId may be a legitimate historical anonymous alias. No backend pro state per managed playbook.
+- /shop from Oggi and Settings: Coach offer, restore/manage, custom simulated Test Store confirmation, upcoming single-purchase cards.
+- /food-coach: SDK-protected conversation, real existing Gemini integration, preferences/food pantry context, private history, medical disclaimer.
+- backend/shop.py injected router: creator applications, approval, written lessons, preview/content redaction, learner follows/preview completion. Creator dashboard/editor/admin moderation.
+- Admin SHOP_ADMIN_EMAIL configured as thevikingoftheweb@gmail.com; ONLY server-verified Google session. Password/signup same email never grants admin. No admin password created for owner.
+- Internal ledger reads verified entries only; atomic earned→paid recording with reference, no money transfer; NO client endpoint creates sales. No real course purchases/earnings ingestion yet. Proposed 90/10 retained; tax/store fee basis not silently decided.
+- Fixed prior theme TS error, signup diet response shape, nonfood-info empty state. DietEditor scroll/dedup and household diet defaults already present.
+### Verification
+- Iteration16 backend 10/10 tests pass (RBAC, course lifecycle/redaction/progress, atomic payout fixtures, real AI Coach/history isolation).
+- Iteration17 SDK Test Store cancel/purchase→pro entitlement passed. Web-manifest missing config fixed with EXPO_PUBLIC fallback.
+- Iteration18 backend smoke4/4; same-browser Chef→Nonna→Chef identity isolation, no inherited entitlement, monthly4.99 offer, restore, live AI Coach/history passed. Original-ID alias compatibility fixed with authoritative CURRENT SDK ID checks; same queue serializes purchase and logout. No anonymous purchases.
+- Actual RN text-node root cause was an empty-string `||`/`&&` condition in CoachOffer; boolean-coerced. Global LogBox suppression removed, zero text-node warnings in final tests. TypeScript and JS/Python lint pass.
+- Iteration19 course UI: admin preview/publish/manual payout registration, student search/follow/preview completion/My Courses persistence and locked lesson guard passed at390x844, no horizontal overflow. Admin/payment fixtures isolated; no real owner Google login or money transfer claimed. No production auth bypass routes/helpers introduced.
+- Creator draft creation/submission UI passed iteration18; all fixture users/sessions/courses/earnings removed. Removed two orphan iteration16 student applications. Core app smoke passed. All new supported flows agent-tested, not user-confirmed.
+- Actual native Android/iOS billing remains unverified; preview uses explicitly SIMULATED RevenueCat Test Store. Minor preexisting RN-web deprecation warnings are non-blocking.
+### Backlog
+- P0: real-store products/credentials and release-device purchase/restore/cancel testing; owner Google admin login verification. See payments panel FAQ. No outstanding blocker in implemented preview/test-store flows.
+- P1: supported single-purchase integration; complete PDF/Freezer; paid lesson enrollment, verified sales/refunds, ledger accounting; 90/10 gross/net/tax policy; store-linked tariff management.
+- P1: owner Google admin login on device; course video/media, final store legal documents.
+- P2: Laboratorio, barcode→camera flow, auto-reorder, calories/macros.

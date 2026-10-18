@@ -1,0 +1,49 @@
+{
+  "summary": "Frontend-only iteration 19 completed on public preview URL using isolated disposable fixtures. Admin candidate normal login -> in-session DB fixture remap -> admin access polling -> admin preview/publish/payout succeeded. Student login then completed search/follow/preview/progress flow successfully. All iter19 fixtures were cleaned and temporary credentials removed from active memory entries.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/tests/setup_iter19_fixtures.py",
+    "/app/tests/mutate_iter19_admin_session.py",
+    "/app/tests/cleanup_iter19_fixtures.py",
+    "/app/tests/smoke_iter19_admin_permissions.py",
+    "/app/test_reports/artifacts_iter19/iter19_preview_load.jpeg",
+    "/app/test_reports/artifacts_iter19/iter19_admin_done.jpeg",
+    "/app/test_reports/artifacts_iter19/iter19_student_progress.jpeg",
+    "/root/.emergent/automation_output/20261018_113307/console_20261018_113307.log",
+    "/root/.emergent/automation_output/20261018_113404/console_20261018_113404.log"
+  ],
+  "action_items": [
+    "Optional hardening: hidden retained screens can produce duplicate testID matches in web automation; keep :visible selectors in regression scripts.",
+    "Optional cleanup note: console still shows non-blocking RN-web deprecation warnings (pointerEvents/shadow*)."
+  ],
+  "critical_code_review_comments": [
+    "Auth injection after mount is correctly non-deterministic due cachedToken/AuthProvider hydration; normal sign-in + in-session fixture mutation path worked as intended.",
+    "Shop admin gating logic behaved correctly with DB-verified identity/session checks and 8s polling (no page reload required).",
+    "Student guard for locked lessons held: locked lesson open action absent, preview progress persisted to My Courses."
+  ],
+  "updated_files": [
+    "/app/tests/setup_iter19_fixtures.py",
+    "/app/tests/mutate_iter19_admin_session.py",
+    "/app/tests/cleanup_iter19_fixtures.py",
+    "/app/tests/smoke_iter19_admin_permissions.py",
+    "/app/test_reports/iteration_19.json"
+  ],
+  "success_rate": {
+    "backend": "N/A (frontend-only scope)",
+    "frontend": "100% of requested admin+student course flow in this iteration"
+  },
+  "seed_data_creation": "Created isolated disposable iter19 fixtures (admin candidate, creator, student, pending course with preview+locked lessons, earning 9 EUR). Removed all fixture data after execution, including course_progress by fixture course_id and credentials list cleanup markers.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Do not reuse iter19 fixture credentials; they were deleted and cleanup markers were written in /app/memory/test_credentials.md. If repeating this path, create a fresh disposable fixture and reuse normal login + in-session DB remap strategy.",
+  "rca_of_issue": "No product bug found in requested scope. Earlier automation failures were harness-related (pymongo import context, modal click viewport, hidden duplicate selectors). Once harness used venv python + visible selectors, required flow passed end-to-end."
+}

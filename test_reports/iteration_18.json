@@ -1,0 +1,70 @@
+{
+  "summary": "Iteration 18 executed both backend and frontend retest on public preview URL. Backend smoke for auth identity, shop access guards, and coach history isolation passed 4/4. Frontend critical identity path passed: Chef->logout->Nonna->logout->Chef in same browser, Nonna saw €4.99 offer with no identity error and no inherited entitlement, Chef regained entitlement and sent a unique Coach prompt with new response flow. No 'Unexpected text node' runtime warning was observed in this run. Course UI flow was partially validated (creator draft+submit and student unauthorized-admin guard), but full creator->admin publish->student follow/progress path could not be completed due unreliable admin fixture session automation in web preview.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Shop Admin UI automation path",
+        "issue": "Token-only disposable admin fixture session was not reliably retained by Expo web auth hydration; login screen frequently reappeared after injection, blocking deterministic admin publish/payout modal checks.",
+        "testID": "shop-admin",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Creator -> admin publish -> student catalogue/follow/progress",
+        "issue": "Creator draft creation and submit succeeded, but admin publish/payout UI verification was incomplete; student catalogue did not show the new fixture course (course remained not verifiably published through UI in this run).",
+        "affected_testIDs": [
+          "creator-new-course",
+          "course-save",
+          "creator-submit-*",
+          "shop-admin",
+          "admin-publish-*",
+          "admin-pay-*",
+          "courses-search"
+        ]
+      }
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter18_identity_ui_backend_smoke.py",
+    "/app/test_reports/pytest/pytest_iter18_backend.xml",
+    "/app/test_reports/artifacts_iter18/iter18_preview_load.jpg",
+    "/app/test_reports/artifacts_iter18/iter18_identity_coach.jpg",
+    "/app/test_reports/artifacts_iter18/iter18_course_flow.jpg",
+    "/app/test_reports/artifacts_iter18/iter18_course_flow_retry.jpg",
+    "/root/.emergent/automation_output/20261018_112043/console_20261018_112043.log",
+    "/root/.emergent/automation_output/20261018_112218/console_20261018_112218.log"
+  ],
+  "action_items": [
+    "Main agent: provide a deterministic admin UI test path without relying on Google interactive auth (or provide a first-class fixture-login route for verified admin in preview) to complete publish + payout modal UI assertions.",
+    "Main agent: after admin-path stabilization, retest full course flow end-to-end (creator submit -> admin publish -> student follow preview -> mark complete -> my-courses progress, and locked lesson remains unreadable).",
+    "Main agent: keep validating with :visible selectors due Expo Router hidden-screen retention across account switches."
+  ],
+  "critical_code_review_comments": [
+    "CoachOffer text-node regression appears fixed: no 'Unexpected text node' warning found across current purchase/switch/coach retest logs.",
+    "Identity queue behavior looked correct in UI logs: account binding moved Chef -> Nonna -> Chef with stable backend-style user IDs and no Nonna identity error on offer screen.",
+    "Backend pytest conftest hard-fails when EXPO_BACKEND_URL/EXPO_PUBLIC_BACKEND_URL is not exported in shell; CI/test runners should ensure env is injected consistently."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter18_identity_ui_backend_smoke.py",
+    "/app/tests/setup_iter18_fixtures.py",
+    "/app/tests/cleanup_iter18_fixtures.py",
+    "/app/test_reports/iteration_18.json",
+    "/app/test_reports/pytest/pytest_iter18_backend.xml"
+  ],
+  "success_rate": {
+    "backend": "100% (4/4)",
+    "frontend": "75% (critical identity/coach/revenuecat checks passed; course-admin UI E2E incomplete)"
+  },
+  "seed_data_creation": "Created isolated temporary fixture set (creator/student/admin session + earning) via /app/tests/setup_iter18_fixtures.py, used for UI checks, then cleaned with /app/tests/cleanup_iter18_fixtures.py including credentials note cleanup.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Critical identity retest is green: Chef purchase/restore and coach send worked, Nonna stayed unsubscribed with €4.99 offer and no identity error, and no text-node runtime warning appeared. Remaining gap is admin UI automation for publish/payout under preview auth constraints; continue from a deterministic admin-auth test strategy then re-run student course consumption assertions.",
+  "rca_of_issue": "RCA for incomplete course E2E: UI automation could not reliably establish a persistent verified-admin shell with token-only fixture in Expo web preview. Evidence: backend logs show creator submit endpoint 200 and admin token valid in direct API checks, but admin UI steps intermittently returned to login or showed no actionable admin rows; API /api/admin/shop calls were not consistently hit during failing attempts. Mitigation: introduce deterministic preview-safe admin fixture sign-in flow (or controlled test-only session exchange) and then re-run admin publish/payout modal + downstream student course progress checks."
+}

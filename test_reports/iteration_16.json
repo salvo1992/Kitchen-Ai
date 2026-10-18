@@ -1,0 +1,62 @@
+{
+  "summary": "Iteration 16 tested backend+frontend for managed shop/coach/courses scope. Backend regression for shop RBAC, creator/admin moderation, payout atomicity, and coach privacy passed 10/10 via isolated fixtures against public preview URL. Frontend mobile checks loaded and auth flows worked, but full RevenueCat purchase E2E in web preview could not be fully validated due onboarding/route interference during scripted navigation (loop-prevention reached after 3 selector-script attempts). Account isolation was partially validated in UI: nonna did not inherit coach access/history and coach remained locked.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Shop entry/navigation from direct /shop URL in web preview",
+        "issue": "Direct navigation to /shop during automation repeatedly landed on Oggi/onboarding context (visible testIDs: oggi-shop, tab-oggi...), so coach offer testIDs were not consistently reachable in-script. This blocked full cancel/success/restore purchase-path assertions in this run.",
+        "testID": "coach-offer",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "RevenueCat end-to-end in web preview (identity log -> cancel -> success -> restore -> manage)",
+        "issue": "Not fully verified in this run due repeated navigation/onboarding interference and loop-prevention cap after 3 script attempts. RevenueCat web mode console appears, but final store-package/entitlement transition assertions are incomplete.",
+        "affected_testIDs": [
+          "coach-offer",
+          "subscribe-coach",
+          "confirm-test-purchase",
+          "restore-purchases",
+          "manage-subscription"
+        ]
+      }
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter16_shop_coach.py",
+    "/app/test_reports/pytest/pytest_iter16.xml",
+    "/app/test_reports/artifacts_iter16/preview_load.png",
+    "/app/test_reports/artifacts_iter16/iter16_ui_state3.png"
+  ],
+  "action_items": [
+    "Main agent: stabilize mobile web navigation into Shop during automation (e.g., deterministic route guard bypass after onboarding) so coach purchase testIDs are always reachable.",
+    "Main agent: re-run focused UI E2E for RevenueCat test-store path (cancel -> success -> restore -> manage) once Shop route access is stable.",
+    "Main agent: optional code hardening - avoid env defaults for sensitive config in backend (ADMIN_EMAIL fallback in shop.py and similar), per fail-fast env policy."
+  ],
+  "critical_code_review_comments": [
+    "backend/shop.py sets ADMIN_EMAIL with a hardcoded fallback default; this conflicts with strict env-only fail-fast policy and can hide misconfiguration.",
+    "backend tests confirm admin guard is correctly session-verified (identity_verified + verified_email + current user email), and password-like session for owner email is denied as required.",
+    "Course privacy controls behaved correctly: non-preview lesson content is redacted for students; preview progress only is enforced; creator cannot edit published course without withdrawal."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter16_shop_coach.py",
+    "/app/test_reports/iteration_16.json",
+    "/app/test_reports/pytest/pytest_iter16.xml"
+  ],
+  "success_rate": {
+    "backend": "100% (10/10)",
+    "frontend": "55% (core auth/load/isolation partial pass; full RC purchase E2E incomplete)"
+  },
+  "seed_data_creation": "Created isolated fixture users/sessions/applications/earnings with unique it16_* tag directly in test DB for RBAC/moderation/payout checks; cleanup included in fixture teardown. Coach UI test created one unique message token candidate but message send was blocked by subscription lock in UI path.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Do not rework selectors repeatedly: 3 attempts already used for this UI flow. Start from Oggi and tap testID oggi-shop to enter Shop instead of direct /shop navigation; handle onboarding 'Salta' first. Then verify coach-offer package price (expected €4.99), identity-binding console line, and cancel/success/restore/manage path.",
+  "rca_of_issue": "Frontend automation blocker RCA: app state often enters onboarding/Oggi shell after auth; direct route jumps were not deterministic under web preview. As a result, revenuecat components under /shop were intermittently unavailable. Reproduction: login -> navigate /shop -> observe Oggi testIDs + onboarding controls rather than coach-offer nodes. Mitigation: deterministic post-login route transition via in-app 'Oggi Shop' action (testID oggi-shop), and onboarding dismissal pre-step in scripts."
+}

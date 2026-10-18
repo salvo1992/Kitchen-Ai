@@ -1,0 +1,82 @@
+{
+  "summary": "Frontend-only focused retest executed on external preview for RevenueCat purchase path, onboarding-gated navigation, and core shop screens. Purchase flow reached real RevenueCat TEST STORE modal, cancel and success paths were validated, and coach entitlement toggled active for Chef. However, persistent React Native runtime error toast/overlay from CoachOffer blocked reliable downstream Coach route and full account-switch isolation completion.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Coach offer / shop screen",
+        "issue": "Persistent runtime toast/overlay: 'Unexpected text node: . A text node cannot be a child of a <View>.' appears on shop repeatedly and interrupts interactions.",
+        "testID": "coach-offer",
+        "priority": "CRITICAL"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "RevenueCat purchase flow (Chef)",
+        "issue": "Confirmed exact path login -> onboarding-skip -> oggi-shop -> coach offer, verified price €4.99 and product title 'Pro monthly'. Custom confirm cancel worked; provider TEST STORE modal appeared; 'Test valid purchase' produced active entitlement and open-coach button.",
+        "affected_testIDs": [
+          "onboarding-skip",
+          "oggi-shop",
+          "coach-price",
+          "subscribe-coach",
+          "cancel-test-purchase",
+          "confirm-test-purchase",
+          "coach-active",
+          "open-coach"
+        ]
+      },
+      {
+        "flow": "Coach route and account-switch isolation (Chef vs Nonna)",
+        "issue": "Could not complete end-to-end verification because runtime CoachOffer error overlay remained active and blocked stable navigation/assertions. Nonna isolation + restore after fresh relogin remain partially verified only.",
+        "affected_testIDs": [
+          "open-coach",
+          "food-coach-screen",
+          "logout"
+        ]
+      }
+    ],
+    "design_issues": [],
+    "react_native_issues": [
+      {
+        "component": "CoachOffer",
+        "issue": "React Native web runtime throws Unexpected text node at src/components/CoachOffer.tsx:34:10 with component stack (CoachOffer -> Shop -> Gate -> RootLayout)."
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/test_reports/artifacts_iter17/iter17_after_chef_flow.jpeg",
+    "/app/test_reports/artifacts_iter17/iter17_chef_post_purchase.jpeg",
+    "/app/test_reports/artifacts_iter17/iter17_chef_smoke.jpeg",
+    "/app/test_reports/artifacts_iter17/iter17_switch_smoke.jpeg",
+    "/root/.emergent/automation_output/20261017_180913/console_20261017_180913.log",
+    "/root/.emergent/automation_output/20261017_181022/console_20261017_181022.log",
+    "/root/.emergent/automation_output/20261017_181107/console_20261017_181107.log",
+    "/root/.emergent/automation_output/20261017_181141/console_20261017_181141.log"
+  ],
+  "action_items": [
+    "Fix CoachOffer JSX runtime error causing 'Unexpected text node' overlay; this is currently the top blocker for reliable UI validation.",
+    "Do not suppress runtime diagnostics globally during this debug cycle; root layout currently ignores all logs and hides useful signal.",
+    "After fixing overlay, re-run full account isolation matrix: Chef subscribed + coach history visible; Nonna unsubscribed + no entitlement/history leakage; logout/login + restore persistence.",
+    "Re-verify coach route opens consistently from open-coach and can send/read real AI history after purchase."
+  ],
+  "critical_code_review_comments": [
+    "app/_layout.tsx has LogBox.ignoreAllLogs(true); this conflicts with requirement to avoid suppressing errors while diagnosing auth/purchase/runtime issues.",
+    "CoachOffer render tree still emits a raw text-node runtime error on web preview despite prior cleanup attempt; issue reproduces repeatedly during shop interactions.",
+    "RevenueCat Browser/Test Store controls are real and discoverable in DOM (e.g., rc-simulated-store-modal-button-primary), and purchase success should continue to be validated via SDK state (coach-active/open-coach), not fake local grants."
+  ],
+  "updated_files": [
+    "/app/test_reports/iteration_17.json"
+  ],
+  "success_rate": {
+    "backend": "N/A (skipped by request)",
+    "frontend": "70% (purchase path validated; coach/account-isolation completion blocked by runtime overlay)"
+  },
+  "seed_data_creation": "No backend seed fixtures created in this iteration.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Use the exact in-app path only: login -> optional onboarding-skip -> oggi-shop. Do not direct-route to /shop before onboarding. RevenueCat provider controls found in DOM as rc-simulated-store-modal-button-primary/secondary/cancel. Chef identity log observed as '[RevenueCat] identity bound: user_b51455c02de2'. Blocker remains runtime error overlay from CoachOffer.",
+  "rca_of_issue": "RCA: runtime text-node violation occurs in CoachOffer render path (line 34 root return context), producing repeated red error toast/overlay. Reproduction: login as Chef -> skip onboarding -> tap oggi-shop. Overlay appears immediately and persists while testing purchase/coach flows. Mitigation: remove/normalize any non-Text JSX text nodes/whitespace in CoachOffer tree and re-run with logging visible (no global LogBox suppression) to confirm clean render before retesting account isolation and Coach navigation."
+}

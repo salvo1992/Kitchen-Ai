@@ -60,6 +60,7 @@ export default function Settings() {
           <Text style={styles.email}>{user?.email}</Text>
         </View>
         <ReminderCard />
+        <Pressable testID="settings-shop" style={styles.row} onPress={() => router.push('/shop')}><Ionicons name="bag-handle-outline" size={22} color={colors.brandPrimary} /><Text testID="settings-shop-title" style={styles.rowTxt}>Shop & Accademia</Text><Ionicons name="chevron-forward" size={18} color={colors.muted} /></Pressable>
         <DietEditor />
         <Pressable testID="settings-family" style={styles.row} onPress={() => router.push("/family")}><Ionicons name="people-outline" size={22} color={colors.brandPrimary} /><Text style={styles.rowTxt}>Famiglia</Text><Text style={{ color: colors.muted, fontSize: 12 }}>{user?.household_id ? "Attiva" : "Condividi la cucina"}</Text><Ionicons name="chevron-forward" size={18} color={colors.muted} /></Pressable>
         <Pressable testID="settings-plan" style={styles.row} onPress={() => router.push("/weekly-plan")}><Ionicons name="sparkles-outline" size={22} color={colors.brandPrimary} /><Text style={styles.rowTxt}>Piano settimanale AI</Text><Ionicons name="chevron-forward" size={18} color={colors.muted} /></Pressable>

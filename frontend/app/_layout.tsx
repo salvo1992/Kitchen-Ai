@@ -1,6 +1,6 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments } from "expo-router";
-import { LogBox, View, ActivityIndicator, Image as RNImage } from "react-native";
+import { View, ActivityIndicator, Image as RNImage } from "react-native";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -12,8 +12,9 @@ import { queryClient } from "@/src/query-client";
 import { AuthProvider, useAuth } from "@/src/auth";
 import { useTheme } from "@/src/theme";
 import { loadOnboarding, useOnboardingDone } from "@/src/storage-keys";
+import { initializePurchases, PurchaseProvider } from "@/src/purchases";
 
-LogBox.ignoreAllLogs(true);
+initializePurchases();
 
 // Prewarm icons for Expo Go Android — do not remove
 try {
@@ -59,8 +60,10 @@ export default function RootLayout() {
           <QueryClientProvider client={queryClient}>
             <KeyboardProvider>
               <AuthProvider>
+                <PurchaseProvider>
                 <StatusBar style="dark" />
                 <Gate />
+                </PurchaseProvider>
               </AuthProvider>
             </KeyboardProvider>
           </QueryClientProvider>

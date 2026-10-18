@@ -163,6 +163,12 @@ export default function Oggi() {
           </LinearGradient>
         </Appear>
 
+        <Bounce testID="oggi-shop" style={styles.kpi} onPress={() => router.push('/shop')}>
+          <View style={styles.kpiIcon}><Ionicons name="bag-handle-outline" size={24} color={colors.brandPrimary} /></View>
+          <View style={{ flex: 1 }}><Text testID="oggi-shop-title" style={styles.kpiTitle}>Shop & Accademia</Text><Text testID="oggi-shop-subtitle" style={styles.kpiSub}>Il tuo Food Coach e nuovi modi di imparare</Text></View>
+          <Ionicons name="arrow-forward" size={20} color={colors.brandSecondary} />
+        </Bounce>
+
         <Enter index={1}>
         <Pressable testID="kpi-expiring" style={[styles.kpi, expiringCount > 0 && { backgroundColor: colors.brandTertiary, borderWidth: 1, borderColor: colors.brandSecondary }]} onPress={() => router.push("/(tabs)/dispensa")}>
           <View style={[styles.kpiIcon, expiringCount > 0 && { backgroundColor: colors.brandSecondary }]}>

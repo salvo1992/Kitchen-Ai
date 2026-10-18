@@ -153,7 +153,7 @@ export default function Dispensa() {
       </GradientHeader>
 
       <ScrollView refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} />} contentContainerStyle={{ paddingBottom: insets.bottom + 110 }}>
-        {!food && items.length > 0 && (
+        {!food && (
           <View style={styles.infoCard} testID="nonfood-info">
             <Ionicons name="hourglass-outline" size={18} color={colors.brandPrimary} />
             <Text style={styles.infoTxt}>Per questi prodotti stimo quando finiranno. Tocca <Text style={{ fontWeight: "700" }}>Finito</Text> quando li esaurisci: imparo quanto durano in casa tua e li rimetto in lista.</Text>

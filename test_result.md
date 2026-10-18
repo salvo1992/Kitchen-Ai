@@ -101,6 +101,53 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+## Iteration 16 (main agent) — Shop, managed RevenueCat, Food Coach, course foundation
+### FINAL — iterations 16–19 (2026-10-18)
+- Implemented scope verified: backend10/10 plus identity/privacy smoke4/4; monthly SDK TestStore purchase/cancel/restore; Coach real AI/history; same-browser Chef→Nonna→Chef isolated; creator draft/submit; admin preview/publish/manual payment registration; student search/follow/preview completion/My Courses and locked lesson guard. All current reports read, reported app issues fixed and retested.
+- Definitive fixes: Constants web manifest fallback, empty-string JSX condition boolean coercion (NOT Notice formatting), SDK CURRENT ID vs historical originalAppUserId alias. Shared operation/identity queue. No global LogBox suppression or auth test bypasses.
+- Iter19 admin UI harness issue resolved via isolated normal-login fixture setup, no product auth change. Admin and ledger fixtures cleaned; real owner Google login/native real billing still pending. Two orphan it16 test applications removed separately.
+- Supported scope only: subscription Coach + course content/moderation/previews/progress/ledger foundation. PDF/Freezer/Lab/paid-course purchases not yet implemented, explicitly marked unavailable. Store real money transactions require owner Apple/Google configuration/device verification; Test Store explicitly SIMULATED.
+- Final reports: test_reports/iteration_16.json (10 backend pass), iteration_17.json (purchase pass, outdated text warning fixed), iteration_18.json (identity pass, outdated admin test limitation resolved), iteration_19.json (course admin/student flow100% pass). No new app bugs remain in implemented scope.
+### Focused retest update
+- Iteration17 Test Store actual SDK simulated purchase PASS: valid purchase activates pro. Remaining text-node issue definitively fixed at CoachOffer retry guard: string OR condition returned empty string; now boolean-coerced. Global LogBox suppression removed. Full next screenshot saw ZERO text-node errors; Coach reply/history, restore, manage passed.
+- Account switch issue discovered in self-test: Nonna correct SDK getAppUserID=user_42cec3f443bc, originalAppUserId=$RCAnonymousID historic alias, entitlements empty. Strict original==backend rejected legitimate account. Confirmed via real SDK diagnostic + RevenueCat docs identifying-customers and codelab identify-users-login-logout. Updated checks to successful logIn + current getAppUserID exact stable backend ID + !isAnonymous. Historical original is only used to filter stale listener events, never as active identity.
+- All purchase/restore/logIn/logOut operations now serialized in same queue, with account match before and after store operation. Entitlements remain solely returned CustomerInfo.active.pro, never local grant. Pending focused retest for this critical identity fix.
+- Use visible route locators after switch: Expo Router may retain hidden stack screens, e.g. locator('[data-testid="oggi-shop"]:visible'). No route/onboarding bypass needed.
+- Backend iteration16 10/10 passed; do not repeat whole backend. Admin email now backend/.env SHOP_ADMIN_EMAIL, fail-closed absent; same value. Fixture admin password removed from test script, user row is test-only verified session, cleanup retained.
+- No onboarding bypass: intended first-login tour. Deterministic tested path is login -> await onboarding-skip -> click -> await oggi-shop -> click. Shop confirmed renders.
+- ACTUAL RC blocker discovered: web Constants manifest omitted new extra keys. Fixed with static EXPO_PUBLIC fallback (real same configured keys), kept native Constants lookup. Price now actual €4.99 / month; custom test confirmation and cancel both screenshot-verified.
+- Retest requires SDK Test Store checkout SUCCESS -> pro -> Coach -> restore/manage. Last screenshot clicked confirm-test-purchase but ended before awaiting SDK UI, so no purchase performed yet. All ops must await resulting SDK UI.
+- RN dev warning empty text-node was seen. Troubleshooter suggested separate Notice components onto lines; applied but verify, diagnose precisely if still seen (no errors suppression).
+user_problem_statement: "Shop in italiano, RevenueCat native store purchases, Coach EUR4.99/month, courses creator/admin/student, creator90/app10 internal balances and manual payment recording; authorized admin thevikingoftheweb@gmail.com. User: RevenueCat is connected, proceed with integration."
+backend:
+  - task: "Course RBAC, moderation, public preview redaction, learning progress, ledger paid transition, real AI Coach history"
+    implemented: true
+    working: NA
+    needs_retesting: true
+    priority: high
+    file: /app/backend/shop.py
+    status_history:
+      - agent: main
+        working: NA
+        comment: "New injected router, trusted Google-session-only admin, approved creators, no client sale/grant endpoint, paid content withheld, only preview progress; only verified ledger records can be marked paid atomically. No real course purchase integration exists yet."
+frontend:
+  - task: "Shop RevenueCat purchase and restore, identity isolation, actual Coach and course screens"
+    implemented: true
+    working: NA
+    needs_retesting: true
+    priority: high
+    file: /app/frontend/src/purchases.tsx
+    status_history:
+      - agent: main
+        working: NA
+        comment: "Module-scope configure, serialized login/logout stable user_id, SDK entitlement only. Test Store with custom simulated purchase confirmation. Monthly package only. Core compiler/lint clean and external login screenshot passed."
+test_plan:
+  current_focus: [RevenueCat monthly pricing and entitlement, identity switching and restore, Coach AI reply/history, course RBAC/creator/moderation/student preview progress, no unauthorized admin, no paid content leaks, no unverified payout, phone layout]
+  test_all: false
+agent_communication:
+  - agent: main
+    message: "Use /app/memory/test_credentials.md. Keys in frontend/.env; RC project proj94eb5ca1. RevenueCat Test Store is simulated by provider, no mocked grant API. Unsupported single-purchase catalogue explicitly upcoming. No real course sales/balances. Admin requires verified Google exchange session, not email alone; use isolated fixtures for role tests, never grant Chef/Nonna admin or create owner-password. If credentials created record and cleanup. Source /app/frontend/src/shop-ui.tsx includes testIDs; pages /shop /food-coach /courses /creator /course-editor /course/[id] /my-courses /shop-admin /shop-info. Native real billing not testable here. Test SDK purchase, cancellation, restore and identity log BEFORE purchase."
+
 ## Iteration 14 (main agent) — Dieta per membro, pasti per componente, ricetta anti-spreco
 - Backend: PATCH /api/auth/profile {name?, diet?}; meals hanno `member_id` (null = tutti); POST/PATCH /api/meals validano member_id (utente o membro household);
   POST /api/ai/expiring-recipe (1 ricetta con prodotti in scadenza ≤3gg, rispetta dieta utente); POST /api/ai/weekly-plan ritorna `member_plans` (piano separato per ogni membro con diet);
