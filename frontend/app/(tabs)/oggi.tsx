@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { HomeDelivery } from "@/src/delivery/HomeDelivery";
 import { View, Text, ScrollView, Pressable, RefreshControl } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -163,6 +164,7 @@ export default function Oggi() {
           </LinearGradient>
         </Appear>
 
+        <HomeDelivery />
         <Bounce testID="oggi-shop" style={styles.kpi} onPress={() => router.push('/shop')}>
           <View style={styles.kpiIcon}><Ionicons name="bag-handle-outline" size={24} color={colors.brandPrimary} /></View>
           <View style={{ flex: 1 }}><Text testID="oggi-shop-title" style={styles.kpiTitle}>Shop & Accademia</Text><Text testID="oggi-shop-subtitle" style={styles.kpiSub}>Il tuo Food Coach e nuovi modi di imparare</Text></View>

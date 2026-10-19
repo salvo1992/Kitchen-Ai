@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pymongo import ReturnDocument
+from digital import has_access, digital_ready
 
 load_dotenv()
 ADMIN_EMAIL = os.getenv('SHOP_ADMIN_EMAIL', '').strip().lower()
@@ -108,9 +109,10 @@ def make_shop_router(db, get_user, scope, generate_coach):
             raise HTTPException(404, 'Corso non trovato')
         return doc
 
-    def summary(doc):
+    async def summary(doc):
+        product = await db.digital_products.find_one({'_id': f"course:{doc['id']}", 'enabled': True}, {'_id': 0, 'key': 1})
         return {k: doc.get(k) for k in ('id', 'title', 'description', 'category', 'price_cents', 'creator_id', 'creator_name', 'status', 'review_note')} | {
-            'lesson_count': len(doc.get('lessons', [])), 'purchase_available': False}
+            'lesson_count': len(doc.get('lessons', [])), 'purchase_available': bool(digital_ready() and product)}
 
     @router.get('/shop/access')
     async def access(request: Request):
@@ -132,32 +134,35 @@ def make_shop_router(db, get_user, scope, generate_coach):
     async def catalogue(request: Request):
         await get_user(request)
         docs = await db.courses.find({'status': 'published'}, {'_id': 0}).sort('updated_at', -1).to_list(200)
-        return {'items': [summary(d) for d in docs]}
+        return {'items': [await summary(d) for d in docs]}
 
     @router.get('/courses/mine')
     async def my_learning(request: Request):
         user = await get_user(request)
         saved = await db.course_progress.find({'user_id': user['user_id']}, {'_id': 0}).to_list(200)
-        docs = await db.courses.find({'id': {'$in': [s['course_id'] for s in saved]}, 'status': 'published'}, {'_id': 0}).to_list(200)
-        return {'items': [summary(d) | {'completed': next((s['completed'] for s in saved if s['course_id'] == d['id']), [])} for d in docs]}
+        purchases = await db.digital_purchases.find({'user_id': user['user_id'], 'kind': 'course', 'granted': True, 'refunded': {'$ne': True}}, {'_id': 0, 'item_key': 1}).to_list(1000)
+        bought = [p['item_key'].split(':', 1)[1] for p in purchases]
+        docs = await db.courses.find({'id': {'$in': list({*[s['course_id'] for s in saved], *bought})}, '$or': [{'status': 'published'}, {'id': {'$in': bought}}]}, {'_id': 0}).to_list(200)
+        return {'items': [(await summary(d)) | {'owned': d['id'] in bought, 'completed': next((s['completed'] for s in saved if s['course_id'] == d['id']), [])} for d in docs]}
 
     @router.get('/courses/{cid}')
     async def detail(cid: str, request: Request):
         user = await get_user(request)
         doc = await course(cid)
         can_edit = doc['creator_id'] == user['user_id'] or await admin_flag(request, user)
-        if doc['status'] != 'published' and not can_edit:
+        unlocked = await has_access(db, user['user_id'], f'course:{cid}')
+        if doc['status'] != 'published' and not can_edit and not unlocked:
             raise HTTPException(404, 'Corso non trovato')
         progress = await db.course_progress.find_one({'_id': f"{user['user_id']}:{cid}"}, {'_id': 0})
-        lessons = [{**l, 'content': l['content'] if l['preview'] or can_edit else None,
-                    'locked': not (l['preview'] or can_edit)} for l in doc['lessons']]
-        return summary(doc) | {'lessons': lessons, 'completed': (progress or {}).get('completed', []), 'saved': bool(progress)}
+        lessons = [{**l, 'content': l['content'] if l['preview'] or can_edit or unlocked else None,
+                    'locked': not (l['preview'] or can_edit or unlocked)} for l in doc['lessons']]
+        return (await summary(doc)) | {'lessons': lessons, 'completed': (progress or {}).get('completed', []), 'saved': bool(progress), 'owned': unlocked}
 
     @router.post('/courses/{cid}/follow')
     async def follow(cid: str, request: Request):
         user = await get_user(request)
         doc = await course(cid)
-        if doc['status'] != 'published':
+        if doc['status'] != 'published' and not await has_access(db, user['user_id'], f'course:{cid}'):
             raise HTTPException(404, 'Corso non disponibile')
         await db.course_progress.update_one({'_id': f"{user['user_id']}:{cid}"}, {'$setOnInsert': {
             'user_id': user['user_id'], 'course_id': cid, 'completed': [], 'created_at': now()}}, upsert=True)
@@ -167,11 +172,12 @@ def make_shop_router(db, get_user, scope, generate_coach):
     async def progress(cid: str, body: Progress, request: Request):
         user = await get_user(request)
         doc = await course(cid)
-        if doc['status'] != 'published':
+        unlocked = await has_access(db, user['user_id'], f'course:{cid}')
+        if doc['status'] != 'published' and not unlocked:
             raise HTTPException(404, 'Corso non disponibile')
         lesson = next((l for l in doc['lessons'] if l['id'] == body.lesson_id), None)
-        if not lesson or not lesson['preview']:
-            raise HTTPException(403, 'Questa lezione richiede un acquisto; vendite non ancora attive')
+        if not lesson or (not lesson['preview'] and not unlocked):
+            raise HTTPException(403, 'Questa lezione richiede un acquisto verificato')
         await follow(cid, request)
         op = '$addToSet' if body.complete else '$pull'
         await db.course_progress.update_one({'_id': f"{user['user_id']}:{cid}"}, {op: {'completed': body.lesson_id}})
@@ -182,10 +188,10 @@ def make_shop_router(db, get_user, scope, generate_coach):
         user = await creator(request)
         docs = await db.courses.find({'creator_id': user['user_id']}, {'_id': 0}).sort('updated_at', -1).to_list(200)
         earnings = await db.course_earnings.find({'creator_id': user['user_id'], 'verified': True}, {'_id': 0}).to_list(1000)
-        return {'courses': [summary(d) for d in docs], 'followers': await db.course_progress.count_documents({'course_id': {'$in': [d['id'] for d in docs]}}),
+        return {'courses': [await summary(d) for d in docs], 'followers': await db.course_progress.count_documents({'course_id': {'$in': [d['id'] for d in docs]}}),
                 'balance_cents': sum(e['creator_cents'] for e in earnings if e['status'] == 'earned'),
                 'paid_cents': sum(e['creator_cents'] for e in earnings if e['status'] == 'paid'),
-                'earnings': [Earning(**e).model_dump() for e in earnings], 'commission_percent': 10, 'sales_active': False}
+                'earnings': [Earning(**e).model_dump() for e in earnings], 'commission_percent': 10, 'sales_active': digital_ready()}
 
     @router.post('/creator/courses')
     async def create(body: CourseBody, request: Request):
@@ -225,10 +231,10 @@ def make_shop_router(db, get_user, scope, generate_coach):
         applications = await db.creator_applications.find({}, {'_id': 0}).sort('created_at', -1).to_list(200)
         docs = await db.courses.find({}, {'_id': 0}).sort('updated_at', -1).to_list(200)
         earnings = await db.course_earnings.find({'verified': True}, {'_id': 0}).to_list(1000)
-        return {'applications': applications, 'courses': [summary(d) for d in docs],
+        return {'applications': applications, 'courses': [await summary(d) for d in docs],
                 'earnings': [Earning(**e).model_dump() for e in earnings], 'commission_percent': 10,
                 'balance_cents': sum(e['creator_cents'] for e in earnings if e['status'] == 'earned'),
-                'paid_cents': sum(e['creator_cents'] for e in earnings if e['status'] == 'paid'), 'sales_active': False}
+                'paid_cents': sum(e['creator_cents'] for e in earnings if e['status'] == 'paid'), 'sales_active': digital_ready()}
 
     @router.post('/admin/creators/{uid}/review')
     async def review_creator(uid: str, body: Review, request: Request):

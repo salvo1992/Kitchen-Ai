@@ -12,7 +12,7 @@ export function CourseCard({ course }: { course: Course }) {
     <Text testID={`course-author-${course.id}`} style={s.muted}>{course.creator_name} · {course.lesson_count} lezioni</Text>
     <Text testID={`course-description-${course.id}`} numberOfLines={3} style={s.body}>{course.description}</Text>
     <Text testID={`course-price-${course.id}`} style={s.h3}>{money(course.price_cents)} · prezzo previsto</Text>
-    {!!course.completed && <Text testID={`course-progress-${course.id}`} style={s.muted}>{course.completed.length} anteprime completate</Text>}
+    {!!course.completed && <Text testID={`course-progress-${course.id}`} style={s.muted}>{course.completed.length} lezioni completate{course.owned ? ' · acquistato' : ' · anteprima'}</Text>}
     <Action id={`course-open-${course.id}`} label="Scopri il programma" secondary onPress={() => router.push({ pathname: '/course/[id]', params: { id: course.id } })} />
   </View>;
 }

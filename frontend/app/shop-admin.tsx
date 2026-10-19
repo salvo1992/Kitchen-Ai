@@ -17,7 +17,9 @@ export default function ShopAdmin() {
     <Notice id="admin-access-error" error text={access.error?.message} />
     {access.data?.is_admin && <>
       <Text testID="admin-title" style={s.title}>Un’Accademia curata,{ '\n' }un passo alla volta.</Text>
-      <Notice id="admin-store-note" text="Coach: abbonamento gestito da RevenueCat, prezzo effettivo letto dallo store. Acquisti singoli e vendite corsi non ancora attivi. Le modifiche alle tariffe store richiedono la configurazione dei prodotti, non un semplice cambio del prezzo proposto." />
+      <Action id="shop-admin-delivery" label="Delivery Chef · professionisti, ordini e conti" onPress={() => router.push('/delivery/admin')} />
+      <Action id="shop-admin-digital" label="Prodotti digitali · store, vendite e rendiconti" secondary onPress={() => router.push('/digital-admin')} />
+      <Notice id="admin-store-note" text="Coach: abbonamento gestito da RevenueCat. Per vendere corsi, configura prima gli acquisti singoli nel pannello prodotti digitali e negli store. Le tariffe store non cambiano modificando soltanto il prezzo proposto dal creatore." />
       {q.isLoading && <Loading />}<Notice id="admin-dashboard-error" error text={q.error?.message} />
       {q.data && <>
         <View style={s.card}><Text testID="admin-balance-title" style={s.caption}>DA LIQUIDARE AI CREATORI</Text><Text testID="admin-balance" style={s.title}>{money(q.data.balance_cents)}</Text><Text testID="admin-paid-total" style={s.muted}>{money(q.data.paid_cents)} registrati come pagati</Text><Text testID="admin-split" style={s.body}>90% creatore / 10% app</Text></View>

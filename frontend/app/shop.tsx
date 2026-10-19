@@ -16,6 +16,12 @@ export default function Shop() {
   return <ShopPage title="Shop & Accademia" id="shop">
     <Enter><Text testID="shop-eyebrow" style={s.caption}>LA TUA CUCINA, UN PASSO IN PIÙ</Text><Text testID="shop-title" style={s.title}>Piccole idee.{ '\n' }Grandi possibilità.</Text></Enter>
     <Enter index={1}><CoachOffer /></Enter>
+    <View style={s.card}>
+      <Text testID="shop-delivery-title" style={s.h2}>La tua cucina, a domicilio.</Text>
+      <Text testID="shop-delivery-description" style={s.body}>Sei uno chef o un’azienda di catering? Crea la tua scheda, pubblica servizi e prezzi e gestisci richieste, agenda e compensi.</Text>
+      <Action id="shop-delivery-provider" label="Il mio Delivery Chef" onPress={() => router.push('/delivery/provider')} />
+      <Action id="shop-delivery-explore" label="Esplora Delivery Chef" secondary onPress={() => router.push('/delivery')} />
+    </View>
     <Enter index={2}><View style={s.card}>
       <View style={s.row}><Ionicons name="school-outline" size={32} color={colors.brandSecondary} /><Text testID="academy-title" style={s.h2}>Impara, crea, condividi.</Text></View>
       <Text testID="academy-description" style={s.body}>Un posto per chi ama cucinare e per chi ha qualcosa da insegnare.</Text>
@@ -25,10 +31,11 @@ export default function Shop() {
       {access.data?.is_admin && <Action id="shop-admin" label="Amministra lo Shop" secondary onPress={() => router.push('/shop-admin')} />}
       <Notice id="shop-access-error" error text={access.error?.message} />
     </View></Enter>
-    <View><Text testID="upcoming-title" style={s.h2}>Presto nella tua cucina</Text><Text testID="upcoming-subtitle" style={s.muted}>Strumenti singoli · non ancora acquistabili</Text></View>
+    <View><Text testID="upcoming-title" style={s.h2}>Strumenti per la tua cucina</Text><Text testID="upcoming-subtitle" style={s.muted}>Esplora le funzioni · sblocco con acquisto singolo verificato</Text></View>
     {upcoming.map((item, i) => <Enter key={item.id} index={i + 3}><View testID={`upcoming-${item.id}`} style={s.outline}>
       <View style={s.row}><Ionicons name={item.icon as any} size={26} color={colors.brandPrimary} /><Text testID={`upcoming-${item.id}-title`} style={[s.h3, s.grow]}>{item.title}</Text></View>
-      <Text testID={`upcoming-${item.id}-description`} style={s.muted}>{item.text}</Text><Text testID={`upcoming-${item.id}-price`} style={s.h3}>{item.price}</Text><Text testID={`upcoming-${item.id}-status`} style={s.badge}>In arrivo · prezzo previsto</Text>
+      <Text testID={`upcoming-${item.id}-description`} style={s.muted}>{item.text}</Text><Text testID={`upcoming-${item.id}-price`} style={s.h3}>{item.price} · prezzo previsto</Text>
+      <Action id={`shop-open-${item.id}`} label="Esplora la funzione" secondary onPress={() => router.push(item.id === 'cookbook' ? '/cookbook' : item.id === 'freezer' ? '/freezer-pro' : '/laboratory')} />
     </View></Enter>)}
     <Action id="shop-info" secondary label="Come funzionano acquisti e corsi" onPress={() => router.push('/shop-info')} />
   </ShopPage>;

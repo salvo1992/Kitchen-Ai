@@ -1,0 +1,25 @@
+import {useRef,useState} from 'react';
+import {Linking,Platform,Pressable,Text,View} from 'react-native';
+import Ionicons from '@react-native-vector-icons/ionicons';
+import {Action,Field,Loading,Notice,ShopPage,useShopStyles} from '@/src/shop-ui';
+import {DigitalOffer,newOperationKey,useDigitalCatalog,useKitchen,useKitchenAction} from '@/src/digital';
+import {useTheme} from '@/src/theme';
+import {resolveUrl} from '@/src/media';
+import {QueryError} from '@/src/delivery/shared';
+
+export default function Cookbook(){
+  const s=useShopStyles();const {colors}=useTheme();const recipes=useKitchen<any>('cookbook-recipes','/api/recipes');const exports=useKitchen<any>('cookbook-exports','/api/cookbook/exports');const catalog=useDigitalCatalog();const action=useKitchenAction();const [title,setTitle]=useState('Le ricette della nostra famiglia');const [dedication,setDedication]=useState('');const [selected,setSelected]=useState<string[]>([]);const [search,setSearch]=useState('');const [error,setError]=useState('');const key=useRef(newOperationKey());
+  const generate=async()=>{setError('');try{await action.mutateAsync({path:'/api/cookbook/exports',key:key.current,body:{title,dedication,recipe_ids:selected}});key.current=newOperationKey();}catch{}};
+  const open=async(url:string)=>{try{await Linking.openURL(resolveUrl(url)!);}catch(e:any){setError(e.message||'Impossibile aprire il PDF');}};
+  const list=(recipes.data?.items||[]).filter((r:any)=>r.title.toLowerCase().includes(search.toLowerCase()));
+  return <ShopPage id="cookbook" title="Ricettario di famiglia"><Text testID="cookbook-title" style={s.title}>Le ricette passano.{ '\n' }I ricordi restano.</Text><Text testID="cookbook-description" style={s.body}>Scegli fino a 50 ricette tue o della famiglia. Il PDF include copertina, dedica, indice, ingredienti, passaggi e note personali.</Text><DigitalOffer itemKey="cookbook"/>
+    <Field testID="cookbook-name" label="Titolo del ricettario" value={title} onChangeText={v=>{setTitle(v);key.current=newOperationKey();}} maxLength={100}/><Field testID="cookbook-dedication" label="Una dedica (facoltativa)" multiline value={dedication} onChangeText={v=>{setDedication(v);key.current=newOperationKey();}} maxLength={1500}/>
+    <Field testID="cookbook-search" label="Cerca nelle ricette salvate" value={search} onChangeText={setSearch}/>{recipes.isLoading&&<Loading/>}<QueryError query={recipes} id="cookbook-recipes"/>
+    <Text testID="cookbook-count" style={s.h3}>{selected.length} / 50 ricette selezionate</Text>
+    {list.map((r:any)=><Pressable key={r.id} testID={`cookbook-select-${r.id}`} accessibilityRole="checkbox" accessibilityState={{checked:selected.includes(r.id)}} style={s.outline} onPress={()=>{setSelected(old=>old.includes(r.id)?old.filter(x=>x!==r.id):old.length<50?[...old,r.id]:old);key.current=newOperationKey();}}><View style={s.row}><Ionicons name={selected.includes(r.id)?'checkbox':'square-outline'} size={24} color={colors.brandPrimary}/><Text testID={`cookbook-recipe-${r.id}`} style={[s.body,s.grow]}>{r.title}</Text></View></Pressable>)}
+    {list.length===0&&!recipes.isLoading&&<Notice id="cookbook-empty" text="Nessuna ricetta trovata. Salva prima qualche ricetta nella tua raccolta."/>}
+    {!!selected.length&&<View style={s.card}><Text testID="cookbook-preview-title" style={s.h2}>{title}</Text><Text testID="cookbook-preview-dedication" style={s.body}>{dedication||'Una raccolta da tramandare.'}</Text>{selected.map((id,i)=><Text testID={`cookbook-index-${i}`} key={id} style={s.muted}>{i+1}. {recipes.data?.items.find((r:any)=>r.id===id)?.title}</Text>)}</View>}
+    <Action id="cookbook-export" label="Genera PDF · usa 1 credito" busy={action.isPending} disabled={!selected.length||title.trim().length<3||!(catalog.data?.pdf_credits)} onPress={generate}/><Notice id="cookbook-error" error text={action.error?.message||error}/>
+    <Text testID="cookbook-exports-title" style={s.h2}>I tuoi ricettari</Text><QueryError query={exports} id="cookbook-exports"/>{exports.data?.items.map((e:any)=><View key={e.id} style={s.card}><Text testID={`cookbook-export-title-${e.id}`} style={s.h3}>{e.title}</Text><Text testID={`cookbook-export-status-${e.id}`} style={s.muted}>{e.recipe_count} ricette · {e.status==='ready'?'PDF pronto':e.status==='failed'?'Da riprovare':e.status==='revoked'?'Acquisto revocato':'Preparazione in corso'}</Text>{e.url&&<Action id={`cookbook-download-${e.id}`} label={Platform.OS==='web'?'Apri / scarica PDF':'Apri PDF per salvarlo o condividerlo'} onPress={()=>open(e.url)}/>}{['failed','building'].includes(e.status)&&<Action id={`cookbook-retry-${e.id}`} secondary label="Riprova preparazione senza nuovo acquisto" busy={action.isPending} onPress={()=>action.mutate({path:`/api/cookbook/exports/${e.id}/retry`})}/>}<Notice id={`cookbook-export-error-${e.id}`} error text={e.error}/></View>)}{exports.data?.items.length===0&&<Text testID="cookbook-exports-empty" style={s.muted}>I PDF generati compariranno qui, pronti da riscaricare.</Text>}
+  </ShopPage>;
+}

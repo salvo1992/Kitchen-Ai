@@ -1,49 +1,27 @@
 {
-  "identity_and_vision": {
-    "app_name": "Smart Kitchen AI - Shop & Marketplace",
-    "persona": "E1 Anti-AI Creative Designer",
-    "theme_archetype": "Organic & Earthy Warm Gourmet Studio",
-    "language": "Italian (it-IT)",
-    "target_vibe": "Warm sage botanicals, warm terracotta highlights, crisp cream backgrounds, premium artisan feel with micro-animations."
+  "project_metadata": {
+    "app_name": "Delivery Chef Ecosystem",
+    "app_type": "mobile_web_app",
+    "framework": "Expo React Native with Web Preview",
+    "design_archetype": "Organic & Earthy (Warm Sage & Terracotta)",
+    "glovo_style_paradigm": "City-filtered exploration, dynamic category chips, provider spotlight cards, quick booking drawers, and dedicated merchant hub"
   },
   "typography": {
-    "display_font": "Fraunces_600SemiBold",
-    "display_medium_font": "Fraunces_500Medium",
-    "body_font": "Nunito_400Regular",
-    "body_semibold": "Nunito_600SemiBold",
-    "body_medium": "Nunito_500Medium",
+    "font_family_display": "Fraunces_600SemiBold",
+    "font_family_display_medium": "Fraunces_500Medium",
+    "font_family_body": "Nunito_400Regular",
+    "font_family_body_medium": "Nunito_500Medium",
+    "font_family_body_bold": "Nunito_600SemiBold",
     "hierarchy": {
-      "h1_hero": {
-        "size": 28,
-        "weight": "800",
-        "letter_spacing": -0.6,
-        "line_height": 34
-      },
-      "h2_section": {
-        "size": 22,
-        "weight": "700",
-        "letter_spacing": -0.4,
-        "line_height": 28
-      },
-      "h3_card_title": {
-        "size": 17,
-        "weight": "600",
-        "letter_spacing": -0.2,
-        "line_height": 22
-      },
-      "body_text": {
-        "size": 14,
-        "line_height": 20
-      },
-      "caption_label": {
-        "size": 12,
-        "line_height": 16,
-        "letter_spacing": 0.5
-      }
+      "h1_hero": "32px to 38px, Fraunces_600SemiBold, letterSpacing -0.5px, line-height 44px",
+      "h2_section": "24px to 28px, Fraunces_600SemiBold, line-height 34px",
+      "h3_card_header": "18px to 20px, Nunito_600SemiBold, line-height 26px",
+      "body_text": "15px, Nunito_400Regular, line-height 22px",
+      "caption_label": "12px to 13px, Nunito_500Medium, uppercase tracking 0.8px"
     }
   },
   "color_palette": {
-    "light_mode": {
+    "light": {
       "surface": "#FDFBF7",
       "onSurface": "#2C302E",
       "surfaceSecondary": "#F5F2EA",
@@ -54,7 +32,6 @@
       "onSurfaceInverse": "#FDFBF7",
       "muted": "#7E8480",
       "brand": "#8DA399",
-      "onBrand": "#FFFFFF",
       "brandPrimary": "#799488",
       "onBrandPrimary": "#FFFFFF",
       "brandSecondary": "#D98364",
@@ -64,12 +41,12 @@
       "success": "#799488",
       "warning": "#E07A5F",
       "error": "#C25450",
+      "info": "#EAE5D9",
       "border": "#EAE5D9",
       "borderStrong": "#D1CCC0",
-      "glassBackground": "rgba(253, 251, 247, 0.85)",
-      "glassBorder": "rgba(234, 229, 217, 0.6)"
+      "divider": "#EAE5D9"
     },
-    "dark_mode": {
+    "dark": {
       "surface": "#232524",
       "onSurface": "#FDFBF7",
       "surfaceSecondary": "#2C302E",
@@ -80,7 +57,6 @@
       "onSurfaceInverse": "#232524",
       "muted": "#9BA19D",
       "brand": "#8DA399",
-      "onBrand": "#1A211E",
       "brandPrimary": "#A3BDB1",
       "onBrandPrimary": "#1A211E",
       "brandSecondary": "#E09C82",
@@ -90,113 +66,65 @@
       "success": "#A3BDB1",
       "warning": "#E69C85",
       "error": "#D97773",
+      "info": "#383C3A",
       "border": "#383C3A",
       "borderStrong": "#4A4D4A",
-      "glassBackground": "rgba(35, 37, 36, 0.85)",
-      "glassBorder": "rgba(56, 60, 58, 0.6)"
+      "divider": "#383C3A"
     }
   },
-  "layout_and_spacing": {
-    "spacing_scale": {
-      "xs": 4,
-      "sm": 8,
-      "md": 12,
-      "lg": 16,
-      "xl": 24,
-      "2xl": 32,
-      "3xl": 48
+  "glovo_style_layout_architecture": {
+    "home_delivery_chef_section": {
+      "city_selector": "Sticky top bar with city picker pill ('Città e Raggio'), explicit search input, and location radius badge (e.g., 'Milano - Entro 25km').",
+      "category_chips": "Horizontal scrollable chips for service filters ('Cena Romantica', 'Anniversario', 'Catering Eventi', 'Personal Chef Settimanale', 'Showcooking').",
+      "chef_cards": "Bento style cards featuring provider photo/avatar, verified badge, rating (e.g. 4.9 ★ (34)), starting price, service area radius, and top signature dish tag.",
+      "booking_modal_drawer": "Instant booking (date/guests/time slot selection) vs Custom Quote Request ('Richiedi Preventivo')."
     },
-    "radii": {
-      "sm": 8,
-      "md": 16,
-      "lg": 24,
-      "pill": 999
-    },
-    "bento_grid_strategy": "Asymmetric Bento Cards for Shop Offerings - AI Coach hero card, Single-purchase feature cards with upcoming badges, Marketplace highlighted courses."
-  },
-  "key_features_blueprint": {
-    "shop_overview": {
-      "route": "/frontend/app/(tabs)/shop.tsx",
-      "title": "Shop & Accademia",
-      "subtitle": "Abbonamenti AI, strumenti avanzati e corsi dei creatori",
-      "sections": [
-        "AI Food Coach Subscription (€4,99/mese) - Active RevenueCat Integration with Restore Purchases",
-        "Strumenti Singoli (Badge 'In Arrivo' / Limitazione RevenueCat managed sub-only): Ricettario di famiglia (€4,99 per esportazione), Freezer Manager Pro (€5,99 una tantum), Laboratorio cucina (€3,99–€7,99 per modulo)",
-        "Marketplace Corsi Creatori (anteprime gratuite; acquisti singoli non ancora disponibili)",
-        "Pannello Creatore (Crea Corso, Modulo 90% Creatore / 10% App, Monitoraggio vendite e saldo)",
-        "Pannello Admin Moderate & Payout (Email: thevikingoftheweb@gmail.com - Gestione Corsi, Saldi Creatori, Registra Pagamento Manuale)"
+    "chef_provider_profile_card": {
+      "components": [
+        "Header showcase with cover image & profile avatar",
+        "Bio, culinary specialties, and experience level",
+        "Signature Dishes Showcase ('Piatti Forti & Cavalli di Battaglia')",
+        "Services offered with pricing structure (Instant price vs Custom quote)",
+        "Verified Customer Reviews with detailed ratings",
+        "Direct booking action sheet trigger"
       ]
     },
-    "pricing_structure": {
-      "ai_food_coach": {
-        "price": "€4,99/mese",
-        "type": "Abbonamento Ricorrente",
-        "revenuecat_package_lookup": "$rc_monthly",
-        "status": "Attivo (RevenueCat)"
-      },
-      "ricettario_famiglia": {
-        "price": "€4,99 / esportazione",
-        "type": "Acquisto Singolo",
-        "status": "In Arrivo (RevenueCat managed supporta solo abbonamenti)"
-      },
-      "freezer_manager_pro": {
-        "price": "€5,99 una tantum",
-        "type": "Acquisto Singolo",
-        "status": "In Arrivo (RevenueCat managed supporta solo abbonamenti)"
-      },
-      "laboratorio_cucina": {
-        "price": "€3,99–€7,99 / modulo",
-        "type": "Acquisto Modulare",
-        "status": "In Arrivo (RevenueCat managed supporta solo abbonamenti)"
-      },
-      "marketplace_courses": {
-        "split": "90% Creatore, 10% Trattenuta App",
-        "payment_method": "Vendite store da integrare; saldo interno solo compensi creatore + registrazione manuale pagamenti esterni"
-      }
+    "negozio_accademia_provider_hub": {
+      "registration_onboarding": "Dedicated registration flow for Chefs & Catering Companies to create their professional Delivery Card, select coverage cities, operating radius, and pricing strategy.",
+      "provider_dashboard": "Order management feed (Pending, Confirmed, Completed), Economic performance chart & earnings breakdown (Net payout vs 10% platform fee), Calendar for appointments, and Review response center."
+    },
+    "admin_delivery_control_panel": {
+      "commission_structure": "Automatic 10% platform fee tracking on all requests. Direct client checkout with fee split visualizer.",
+      "management": "Chef verification & approval queue, order overview, refund/dispute status, payout readiness indicators (Stripe Connect setup state)."
+    },
+    "legacy_features_status": {
+      "ricettario_pdf": "PDF Recipe Book generator integration",
+      "freezer_pro": "Smart freezer inventory & expiration tracker",
+      "laboratorio": "Culinary experimentation lab & testing zone",
+      "course_sales": "Digital course purchases stay on RevenueCat/native stores; never Stripe Connect. Activate only after matching store products and verified digital fulfillment are configured."
     }
   },
-  "image_urls": [
-    {
-      "category": "course_hero",
-      "url": "https://images.unsplash.com/photo-1577219491135-ce391730fb2c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDZ8MHwxfHNlYXJjaHwyfHxnb3VybWV0JTIwZm9vZCUyMGNvb2tpbmclMjBjb3Vyc2UlMjBjaGVmJTIwc3R1ZGlvfGVufDB8fHx8MTc5MjI1OTA2NHww&ixlib=rb-4.1.0&q=85",
-      "description": "Masterclass di Cucina Italiana Contemporanea"
-    },
-    {
-      "category": "chef_portrait",
-      "url": "https://images.unsplash.com/photo-1577219492769-b63a779fac28?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDZ8MHwxfHNlYXJjaHw0fHxnb3VybWV0JTIwZm9vZCUyMGNvb2tpbmclMjBjb3Vyc2UlMjBjaGVmJTIwc3R1ZGlvfGVufDB8fHx8MTc5MjI1OTA2NHww&ixlib=rb-4.1.0&q=85",
-      "description": "Tecniche di Impiattamento e Alta Gastronomia"
-    },
-    {
-      "category": "baking_workshop",
-      "url": "https://images.unsplash.com/photo-1581349485608-9469926a8e5e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDZ8MHwxfHNlYXJjaHszfHxnb3VybWV0JTIwZm9vZCUyMGNvb2tpbmclMjBjb3Vyc2UlMjBjaGVmJTIwc3R1ZGlvfGVufDB8fHx8MTc5MjI1OTA2NHww&ixlib=rb-4.1.0&q=85",
-      "description": "Panificazione Naturale e Lievitati"
-    }
-  ],
-  "testing_guidelines": {
-    "required_test_ids": [
-      "shop-tab-button",
-      "ai-food-coach-card",
-      "ai-food-coach-subscribe-button",
-      "restore-purchases-button",
-      "ricettario-famiglia-card",
-      "freezer-manager-card",
-      "laboratorio-cucina-card",
-      "course-card-{course_id}",
-      "buy-course-button-{course_id}",
-      "creator-dashboard-button",
-      "create-course-form-submit",
-      "admin-payout-modal",
-      "admin-manual-payout-button",
-      "user-internal-balance"
-    ]
+  "component_design_rules": {
+    "spacing": "Generous spacing philosophy (8px, 16px, 24px, 32px padding/gaps) to keep layouts breathable.",
+    "border_radii": "sm: 8px, md: 16px, lg: 24px, pill: 999px for interactive buttons and badges.",
+    "buttons": "Pill-shaped or rounded-md with tactile press states (active opacity 0.85). Primary buttons use brandPrimary (#799488) or brandSecondary (#D98364).",
+    "cards": "Subtle borders using theme border color (#EAE5D9 / #383C3A) with subtle surface elevated backgrounds. No harsh dark drop shadows."
   },
-  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
-    "Interfaccia rigorosamente in lingua ITALIANA.",
-    "Preservare la palette di colori esistente in /app/frontend/src/theme.ts (Sage green #8DA399, Terracotta #D98364, Warm Cream #FDFBF7, Dark Charcoal #2C302E).",
-    "Integrare RevenueCat per AI Food Coach (€4,99/mese) con gestione ripristino acquisti ('Ripristina Acquisti').",
-    "Segnalare in modo chiaro ed onesto che i prodotti ad acquisto singolo (Ricettario €4,99, Freezer Manager Pro €5,99, Laboratorio €3,99-€7,99) sono 'In Arrivo' a causa del supporto limitato agli abbonamenti di managed RevenueCat.",
-    "Nel Marketplace corsi: calcolare automaticamente la quota 90% Creatori e 10% App.",
-    "Admin (thevikingoftheweb@gmail.com, sessione Google verificata): approvazione corsi e registrazione pagamenti manuali. Commissione 10% come richiesta; tariffe store gestite tramite integrazione.",
-    "Tutti gli elementi interattivi e di dati chiave devono includere data-testid."
+  "stripe_connect_compliance": {
+    "honest_readiness_state": "Real platform connection requires Stripe Connect account configuration. Display clear readiness/error banners for automated payouts without fake balance generation."
+  },
+  "general_ui_ux_guidelines": {
+    "data_testid_requirement": "All interactive elements, buttons, text inputs, card items, modal triggers, and status indicators MUST include explicit 'data-testid' attributes in kebab-case format (e.g. data-testid='delivery-chef-search-input', data-testid='chef-profile-book-button').",
+    "accessibility": "Ensure color contrast ratio >= 4.5:1 for standard body text against background surfaces.",
+    "theme_support": "Fully support dynamic light/dark mode based on system preference using theme tokens in theme.ts."
+  },
+  "instructions_to_main_agent": [
+    "Follow the theme colors defined in src/theme.ts strictly (#799488 brandPrimary, #D98364 brandSecondary, #FDFBF7 light surface, #232524 dark surface).",
+    "Integrate the Delivery Chef section into the Home screen with Glovo-style search, city filter, category chips, and chef cards.",
+    "Ensure professional onboarding and provider card creation inside Negozio & Accademia.",
+    "Build provider orders, appointments, earnings, and reviews management dashboard.",
+    "Include Admin delivery controls for order status, 10% commission calculation, chef approval, and refund management.",
+    "Keep Ricettario PDF, Freezer Pro, Laboratorio, and honest Course Sales activation states.",
+    "Ensure data-testid attributes are present across all components."
   ]
 }

@@ -74,4 +74,4 @@ export function useShopAccess() {
 }
 export const money = (cents: number) => `${(cents / 100).toFixed(2).replace('.', ',')} €`;
 export const statusLabel: Record<string, string> = { draft: 'Bozza', pending: 'In revisione', published: 'Pubblicato', rejected: 'Da rivedere', approved: 'Approvato' };
-export type Course = { id: string; title: string; description: string; category: string; price_cents: number; creator_name: string; status: string; lesson_count: number; review_note?: string; completed?: string[]; saved?: boolean; lessons?: { id: string; title: string; content: string | null; preview: boolean; locked: boolean }[] };
+export type Course = { id: string; title: string; description: string; category: string; price_cents: number; creator_name: string; status: string; lesson_count: number; owned?: boolean; purchase_available?: boolean; review_note?: string; completed?: string[]; saved?: boolean; lessons?: { id: string; title: string; content: string | null; preview: boolean; locked: boolean }[] };

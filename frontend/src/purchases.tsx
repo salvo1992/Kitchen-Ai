@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { AppState, Platform } from 'react-native';
 import Constants from 'expo-constants';
-import Purchases, { LOG_LEVEL, CustomerInfo, PurchasesPackage } from 'react-native-purchases';
+import Purchases, { LOG_LEVEL, CustomerInfo, PurchasesPackage, PurchasesStoreProduct } from 'react-native-purchases';
 import { useAuth } from './auth';
 
 export const simulatedPurchases = Platform.OS === 'web' || __DEV__ || Constants.appOwnership === 'expo';
@@ -96,7 +96,7 @@ function usePurchaseState() {
     return () => { Purchases.removeCustomerInfoUpdateListener(listener); sub.remove(); };
   }, []);
 
-  const operate = useCallback(async (pkg?: PurchasesPackage) => {
+  const operate = useCallback(async (pkg?: PurchasesPackage, product?: PurchasesStoreProduct) => {
     if (busyRef.current) throw new Error('Operazione già in corso.');
     busyRef.current = true; setBusy(true);
     const expected = currentUid.current;
@@ -104,7 +104,7 @@ function usePurchaseState() {
       const operation = identityQueue.catch(() => undefined).then(async () => {
         if (!expected || currentUid.current !== expected || boundRef.current !== expected || !initialized) throw new Error('Collega il tuo account prima di acquistare.');
         if ((await Purchases.getAppUserID()) !== expected || await Purchases.isAnonymous()) throw new Error('Identità acquisti non verificata.');
-        const next = pkg ? (await Purchases.purchasePackage(pkg)).customerInfo : await Purchases.restorePurchases();
+        const next = product ? (await Purchases.purchaseStoreProduct(product)).customerInfo : pkg ? (await Purchases.purchasePackage(pkg)).customerInfo : await Purchases.restorePurchases();
         if (currentUid.current !== expected || (await Purchases.getAppUserID()) !== expected) throw new Error('Account cambiato durante l’operazione. Accedi nuovamente allo Shop.');
         originalRef.current = next.originalAppUserId;
         setInfo(next);
@@ -116,6 +116,14 @@ function usePurchaseState() {
     } finally { busyRef.current = false; setBusy(false); }
   }, []);
 
+  const loadDigitalProduct = useCallback(async (id: string) => {
+    if (Platform.OS === 'web' || Constants.appOwnership === 'expo') throw new Error('Acquisti singoli disponibili solo nella build iOS/Android con gli store configurati.');
+    await identityQueue;
+    if (!initialized || !currentUid.current || boundRef.current !== currentUid.current || await Purchases.isAnonymous() || await Purchases.getAppUserID() !== currentUid.current) throw new Error('Account acquisti non verificato');
+    const products = await Purchases.getProducts([id], Purchases.PRODUCT_CATEGORY.NON_SUBSCRIPTION);
+    return products.find(p => p.identifier === id) || null;
+  }, []);
+
   const identityReady = !!uid && uid === boundId && !!info && !identityError;
   return {
     packages, loading, busy, identityReady, identityError, storeError,
@@ -123,6 +131,11 @@ function usePurchaseState() {
     managementURL: identityReady ? info?.managementURL : null,
     expirationDate: identityReady ? info?.entitlements.active.pro?.expirationDate : null,
     purchase: (pkg: PurchasesPackage) => operate(pkg), restore: () => operate(),
+    loadDigitalProduct,
+    purchaseDigital: (product: PurchasesStoreProduct) => {
+      if (Platform.OS === 'web' || Constants.appOwnership === 'expo') throw new Error('Acquisto disponibile nella build mobile con store configurati.');
+      return operate(undefined, product);
+    },
     retry: () => setRetryCount(n => n + 1),
   };
 }

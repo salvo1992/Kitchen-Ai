@@ -13,7 +13,7 @@ export default function Courses() {
   const items = (q.data?.items || []).filter(c => `${c.title} ${c.category} ${c.creator_name}`.toLowerCase().includes(search.trim().toLowerCase()));
   return <ShopPage title="Accademia di cucina" id="courses">
     <Text testID="courses-title" style={s.title}>C’è sempre qualcosa{ '\n' }di buono da imparare.</Text>
-    <Notice id="courses-sales-status" text="L’Accademia sta prendendo forma. Esplora le anteprime dei corsi approvati: gli acquisti singoli non sono ancora attivi." />
+    <Notice id="courses-sales-status" text="Esplora le anteprime dei corsi approvati. La scheda di ogni corso indica se l’acquisto singolo è disponibile nel tuo store; lo sblocco completo richiede conferma server." />
     <Field testID="courses-search" label="Trova il tuo prossimo corso" placeholder="Tecnica, creatore o categoria" value={search} onChangeText={setSearch} />
     {q.isLoading && <Loading />}<Notice id="courses-error" error text={q.error?.message} />
     {q.isError && <Action id="courses-retry" label="Riprova" onPress={() => q.refetch()} />}

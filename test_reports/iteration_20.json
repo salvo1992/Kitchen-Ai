@@ -1,0 +1,67 @@
+{
+  "summary": "Iteration 20 covered delivery backend + mobile-first frontend checks on public preview URL. Backend suite executed 21 tests (20 pass, 1 fail) for authz, provider ownership, city/radius enforcement, idempotent quote requests, Connect/payment gating, webhook secret guard, and payment split unit guards. Frontend mobile checks validated login, onboarding skip, Oggi->Delivery navigation, Roma city search, category/mode filters, payment-disabled notice, and admin-forbidden behavior for non-verified session.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/delivery/provider/slots",
+        "issue": "Concurrent overlapping slot creation returns 500 instead of controlled 409. Root cause: create_slot catches DuplicateKeyError, but insert_many raises BulkWriteError(E11000 duplicate _id) on delivery_slot_locks conflicts.",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Provider management deep-link checks",
+        "issue": "Direct URL navigation attempts to /delivery/provider from fresh page often land back on Oggi/home route before provider screen is mounted; deterministic testing worked only via Oggi -> Shop -> Il mio Delivery Chef path.",
+        "affected_testIDs": [
+          "oggi-shop",
+          "shop-delivery-provider",
+          "delivery-provider-screen"
+        ]
+      }
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter20_delivery_core.py",
+    "/app/backend/tests/test_iter20_delivery_payments_unit.py",
+    "/app/test_reports/pytest/pytest_iter20_backend.xml",
+    "/app/test_reports/artifacts_iter20/iter20_preview_load.jpg",
+    "/app/test_reports/artifacts_iter20/iter20_delivery_filters.jpg",
+    "/app/test_reports/artifacts_iter20/iter20_provider_nav.jpg",
+    "/app/test_reports/artifacts_iter20/iter20_provider_submit.jpg",
+    "/root/.emergent/automation_output/20261018_193442/console_20261018_193442.log",
+    "/root/.emergent/automation_output/20261018_193542/console_20261018_193542.log",
+    "/root/.emergent/automation_output/20261018_193600/console_20261018_193600.log"
+  ],
+  "action_items": [
+    "Fix slot overlap exception mapping in backend delivery.create_slot: handle pymongo BulkWriteError duplicate-key path and return HTTP 409 consistently.",
+    "After fix, retest concurrent slot create and downstream quote-reserve path under race conditions.",
+    "Run a dedicated admin Google-verified approval retest for full UI flow (approve provider -> customer quote request -> provider quote -> customer offer view), since admin Google session cannot be automated with shared test credentials.",
+    "Optionally harden provider route deep-link behavior for deterministic direct URL loading in Expo web preview."
+  ],
+  "critical_code_review_comments": [
+    "delivery.py:create_slot currently catches DuplicateKeyError, but insert_many duplicate lock collisions emit BulkWriteError, causing unhandled 500s on overlap races.",
+    "Connect gating behaves correctly in this run: checkout/onboarding paths block with payment_config configured=false and webhook endpoint requires STRIPE_CONNECT_WEBHOOK_SECRET.",
+    "Public provider catalogue response correctly excludes private provider fields and pending providers in tested path."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter20_delivery_core.py",
+    "/app/backend/tests/test_iter20_delivery_payments_unit.py",
+    "/app/test_reports/iteration_20.json",
+    "/app/test_reports/pytest/pytest_iter20_backend.xml"
+  ],
+  "success_rate": {
+    "backend": "95.2% (20/21)",
+    "frontend": "80% (core mobile delivery browse/filter + admin block checks passed; provider end-to-end/manage flows partially constrained by route/deep-link behavior and non-automatable admin Google session)"
+  },
+  "seed_data_creation": "Created isolated ITER20 fixture users/providers/services/slots/bookings directly through API + temporary DB status mutation; cleanup fixture removed created users/sessions/providers/services/slots/bookings/reviews/uploads/file tokens.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Re-use /app/backend/tests/test_iter20_delivery_core.py and focus first on test_14 overlap race after backend fix. Keep using :visible selectors in Expo web runs and enter delivery provider screen via Oggi->Shop path for deterministic UI automation.",
+  "rca_of_issue": "Repro for critical backend defect: for same provider/date/time/duration, submit POST /api/delivery/provider/slots twice in rapid sequence. Expected second response 409 overlap; observed 500. Backend log shows pymongo BulkWriteError E11000 on collection delivery_slot_locks (_id duplicate bucket). Since code only catches DuplicateKeyError, BulkWriteError bypasses graceful overlap handling. Mitigation: catch BulkWriteError (code 11000) and map to HTTP 409 with existing overlap message, plus cleanup of provisional slot locks."
+}

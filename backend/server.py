@@ -13,6 +13,9 @@ from datetime import datetime, timezone, timedelta
 
 from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
 from shop import make_shop_router
+from delivery import make_delivery_router, init_delivery
+from digital import make_digital_router
+from kitchen_products import make_kitchen_products_router
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -1484,6 +1487,9 @@ async def generate_coach_reply(user, message, history, pantry):
 
 
 app.include_router(make_shop_router(db, get_user, scope, generate_coach_reply))
+app.include_router(make_delivery_router(db, get_user))
+app.include_router(make_digital_router(db, get_user))
+app.include_router(make_kitchen_products_router(db, get_user, scope, owned, _store_upload))
 app.include_router(api_router)
 
 # Root-level probes used by the deployment platform (nginx → uvicorn, no /api prefix)
@@ -1505,6 +1511,7 @@ async def on_startup():
     asyncio.create_task(_startup_tasks())
 
 async def _startup_tasks():
+    await init_delivery(db)
     try:
         await db.users.create_index("email", unique=True)
         await db.users.create_index("user_id", unique=True)
